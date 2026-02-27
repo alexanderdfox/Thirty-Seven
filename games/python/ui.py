@@ -30,7 +30,7 @@ def draw_vow(screen, font_small, state):
 def draw_instructions(screen, font_small):
     """Draw controls."""
     lines = [
-        "WASD / Arrows: Move",
+        "Mouse: Move",
         "SPACE: Breathe (hold to prepare Lights Out)",
         "SPACE again: Lights Out (voluntary fall)",
         "Awaken the crowd. Avoid the Pale Ones.",

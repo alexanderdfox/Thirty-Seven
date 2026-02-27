@@ -3,7 +3,6 @@
 import math
 import pygame
 from constants import (
-    WANDERER_SPEED,
     PALE_ONE_SPEED,
     AWAKEN_RADIUS,
     AWAKEN_TIME,
@@ -36,24 +35,12 @@ class Wanderer(pygame.sprite.Sprite):
         self.lights_out_cooldown = 0
         self.awakened_count = 0
 
-    def update(self, keys, screen_rect):
+    def update(self, mouse_pos, screen_rect):
         if self.state == "alive" or self.state == "breathing":
-            dx, dy = 0, 0
-            if keys[pygame.K_w] or keys[pygame.K_UP]:
-                dy = -1
-            if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-                dy = 1
-            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-                dx = -1
-            if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-                dx = 1
-            if dx or dy:
-                dist = math.sqrt(dx * dx + dy * dy)
-                dx, dy = dx / dist, dy / dist
-            self.x += dx * WANDERER_SPEED
-            self.y += dy * WANDERER_SPEED
+            mx, my = mouse_pos
+            self.x = max(screen_rect.left + self.radius, min(screen_rect.right - self.radius, mx))
+            self.y = max(screen_rect.top + self.radius, min(screen_rect.bottom - self.radius, my))
             self.rect.center = (int(self.x), int(self.y))
-            self.rect.clamp_ip(screen_rect)
 
         if self.state == "breathing":
             self.breath_timer -= 1

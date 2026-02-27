@@ -1,5 +1,7 @@
 """Level/Era definitions for Thirty Seven"""
 
+import random
+
 # Each level: name, bg_color, (wanderer_start), [pale_ones], [crowd], awaken_goal
 # Positions as (x, y) percentages of screen
 
@@ -72,3 +74,46 @@ LEVELS = [
         "awaken_goal": 5,
     },
 ]
+
+
+def generate_random_level(level_number):
+    """Generate an infinite random level. Difficulty scales with level_number."""
+    rng = random.Random(level_number)  # Seed for reproducibility per level
+
+    # Dark, varied background
+    base = rng.randint(2, 25)
+    bg = (
+        base,
+        base + rng.randint(0, 10),
+        base + rng.randint(5, 25),
+    )
+
+    # Difficulty scales: more pale ones, more crowd, higher awaken goal
+    pale_count = min(12, 4 + level_number // 2)
+    crowd_count = min(30, 8 + level_number)
+    awaken_goal = min(crowd_count - 2, 5 + level_number // 2)
+
+    # Spawn positions - avoid center (wanderer start)
+    def rand_pos():
+        x = 0.15 + rng.random() * 0.7
+        y = 0.15 + rng.random() * 0.7
+        return (round(x, 2), round(y, 2))
+
+    pale_ones = [rand_pos() for _ in range(pale_count)]
+    crowd = [rand_pos() for _ in range(crowd_count)]
+
+    era_names = [
+        "THE RIFT", "ECHO", "ETERNAL RETURN", "THE CYCLE",
+        "VOID", "THE SPARK", "LONGING", "THE NOTE",
+    ]
+    name = f"{rng.choice(era_names)} #{level_number}"
+
+    return {
+        "name": name,
+        "subtitle": "The fire never dies.",
+        "bg": bg,
+        "wanderer": (0.5, 0.5),
+        "pale_ones": pale_ones,
+        "crowd": crowd,
+        "awaken_goal": max(3, awaken_goal),
+    }

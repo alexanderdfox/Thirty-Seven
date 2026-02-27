@@ -14,3 +14,8 @@ venv/
 .vscode/
 *.swp
 .DS_Store
+
+# Xcode / iOS
+*.xcuserstate
+*.xcworkspace
+DerivedData/

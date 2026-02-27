@@ -4,7 +4,7 @@ THIRTY SEVEN
 A Pygame Parable of Desire, Death, and the Undying Cycle
 
 Based on the screenplay by the same name.
-Move with WASD. Breathe with SPACE. Lights Out with SPACE again during breath.
+Move with mouse. Breathe with SPACE. Lights Out with SPACE again during breath.
 Awaken the crowd. Avoid the Pale Ones. The fire never dies.
 """
 
@@ -19,13 +19,12 @@ from constants import (
     VOID,
 )
 from entities import Wanderer, PaleOne, CrowdMember
-from levels import LEVELS
+from levels import LEVELS, generate_random_level
 from ui import (
     draw_vow,
     draw_instructions,
     draw_hud,
     draw_title_screen,
-    draw_game_over,
     draw_victory,
 )
 
@@ -40,19 +39,18 @@ def main():
     font_small = pygame.font.Font(None, 32)
 
     # Game state
-    state = "title"  # title, playing, level_complete, game_over, victory
+    state = "title"  # title, playing, level_complete, victory
     level_index = 0
     wanderer = None
     pale_ones = []
     crowd = []
     level_data = None
-    caught_by_pale_ones = False
-
     def load_level(idx):
         nonlocal wanderer, pale_ones, crowd, level_data
-        if idx >= len(LEVELS):
-            return False
-        level_data = LEVELS[idx]
+        if idx < len(LEVELS):
+            level_data = LEVELS[idx]
+        else:
+            level_data = generate_random_level(idx + 1)
         w, h = SCREEN_WIDTH, SCREEN_HEIGHT
 
         wx = int(level_data["wanderer"][0] * w)
@@ -92,21 +90,20 @@ def main():
                     if state == "playing":
                         state = "title"
                         level_index = 0
+                        pygame.mouse.set_visible(True)
                     else:
                         running = False
                 elif state == "title":
                     if event.key == pygame.K_SPACE:
                         state = "playing"
                         load_level(0)
-                elif state == "game_over":
-                    if event.key == pygame.K_r:
-                        state = "playing"
-                        load_level(level_index)
+                        pygame.mouse.set_visible(False)
                 elif state == "victory":
                     if event.key == pygame.K_SPACE:
                         state = "playing"
                         level_index = 0
                         load_level(0)
+                        pygame.mouse.set_visible(False)
                 elif state == "playing" and event.key == pygame.K_SPACE:
                     if wanderer.state == "alive":
                         wanderer.breathe()
@@ -115,32 +112,29 @@ def main():
                 elif state == "level_complete":
                     if event.key == pygame.K_SPACE:
                         level_index += 1
-                        if load_level(level_index):
-                            state = "playing"
-                        else:
-                            state = "victory"
+                        load_level(level_index)
+                        state = "playing"
+                        pygame.mouse.set_visible(False)
 
         if state == "playing":
-            keys = pygame.key.get_pressed()
-            wanderer.update(keys, screen.get_rect())
+            mouse_pos = pygame.mouse.get_pos()
+            wanderer.update(mouse_pos, screen.get_rect())
             for p in pale_ones:
                 p.update(wanderer)
             for c in crowd:
                 c.update(wanderer)
 
             if check_pale_collision():
-                state = "game_over"
-                caught_by_pale_ones = True
+                load_level(level_index)  # Restart current level, loop until victory or quit
 
             awakened = get_awakened_count()
             if awakened >= level_data["awaken_goal"]:
                 state = "level_complete"
+                pygame.mouse.set_visible(True)
 
         # Draw
         if state == "title":
             draw_title_screen(screen, font_large, font_small)
-        elif state == "game_over":
-            draw_game_over(screen, font_large, font_small, caught_by_pale_ones)
         elif state == "victory":
             draw_victory(screen, font_large, font_small)
         elif state == "level_complete":
