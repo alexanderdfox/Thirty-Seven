@@ -2,11 +2,11 @@
 
 A Parable of Desire, Death, and the Undying Cycle.
 
-Swift/SpriteKit game for iPhone. Touch to move, tap Breathe to prepare Lights Out, avoid the Pale Ones.
+Swift/SpriteKit 2D game for iPhone. Touch to move, tap Breathe to prepare Lights Out, avoid the Pale Ones.
 
 ## Setup in Xcode
 
-1. Open Xcode and create a new project: **File → New → Project**
+1. Open Xcode. From `games/ios/` use an existing project, or create new: **File → New → Project**
 2. Choose **App** under iOS
 3. Product Name: `ThirtySeven`
 4. Interface: **SwiftUI**

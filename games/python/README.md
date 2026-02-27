@@ -5,6 +5,7 @@ A video game adaptation of the screenplay *Thirty Seven: A Parable of Desire, De
 ## How to Run
 
 ```bash
+cd games/python
 pip install -r requirements.txt
 python main.py
 ```

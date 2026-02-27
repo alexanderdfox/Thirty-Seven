@@ -1,6 +1,6 @@
 /**
- * THIRTY SEVEN — A Parable of Desire, Death, and the Undying Cycle
- * Three.js 3D Version
+ * THIRTY SEVEN — 6DOF Camera
+ * You are the camera. Direct movement: instant response, no momentum.
  */
 
 function coolColor(seed) {
@@ -45,25 +45,21 @@ const AccessOptions = {
   largerHitboxes: false,
   slowerPale: false,
   longerAwaken: false,
-  keyboard: false,
   audioCues: false,
-  cursorSmoothing: false,
   music: true,
   load() {
     try {
-      const s = localStorage.getItem("thirtyseven-access");
+      const s = localStorage.getItem("thirtyseven-access-6dof");
       if (s) Object.assign(this, JSON.parse(s));
     } catch (e) {}
   },
   save() {
     try {
-      localStorage.setItem("thirtyseven-access", JSON.stringify({
+      localStorage.setItem("thirtyseven-access-6dof", JSON.stringify({
         largerHitboxes: this.largerHitboxes,
         slowerPale: this.slowerPale,
         longerAwaken: this.longerAwaken,
-        keyboard: this.keyboard,
         audioCues: this.audioCues,
-        cursorSmoothing: this.cursorSmoothing,
         music: this.music
       }));
     } catch (e) {}
@@ -78,24 +74,35 @@ const AccessOptions = {
 };
 AccessOptions.load();
 
+const ARENA_W = 400, ARENA_H = 400, ARENA_DEPTH = 300;
+const MOVE_SPEED = 10;
+const ROLL_SPEED = 2;
+const JUMP_SPEED = 12;
+const BOOST_SPEED = 24;
+const BOOST_DURATION = 0.2;
+const JUMP_DURATION = 0.25;
+const BOOST_COOLDOWN = 0.8;
+const MOUSE_SENSITIVITY = 0.002;
+const FLOOR_Y = 0;
+const ENTITY_HEIGHT = 30;
+
 let scene, camera, renderer, w, h;
 let state = "menu";
 let levelIndex = 0;
 let levelData = null;
-let wanderer = { x: 0, z: 0, state: "alive", breathTimer: 0, fallTimer: 0, riseTimer: 0, invulnTimer: 0, lightsOutCooldown: 0 };
+let wanderer = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, state: "alive", breathTimer: 0, fallTimer: 0, riseTimer: 0, invulnTimer: 0, lightsOutCooldown: 0, jumpRemaining: 0, jumpVx: 0, jumpVy: 0, jumpVz: 0, boostRemaining: 0, boostVx: 0, boostVy: 0, boostVz: 0, boostCooldown: 0, boostInvuln: 0 };
 let paleOnes = [];
 let crowd = [];
-let pointer = { x: 0, y: 0 };
-let smoothedPointer = { x: 0, z: 0 };
-let keyInput = { dx: 0, dz: 0 };
+let moveInput = { thrust: 0, slideUp: 0, slideRight: 0, roll: 0 };
 const keysDown = {};
-const KEYBOARD_SPEED = 4;
-const SMOOTH_FACTOR = 0.15;
+let isPointerLocked = false;
 let lastTime = 0;
 
-let groundPlane, groundMesh, wandererMesh, paleMeshes = [], crowdMeshes = [];
-let raycaster, mouse;
-const floorY = 0;
+let groundMesh, wandererMesh, paleMeshes = [], crowdMeshes = [];
+let walls = [];
+let rearCamera, rearLeftCamera, rearRightCamera;
+let mirrorRenderTarget, mirrorLeftTarget, mirrorRightTarget;
+let mirrorScene, mirrorCamera;
 
 const Audio = {
   ctx: null,
@@ -202,19 +209,17 @@ function makeSphere(radius, color) {
   return new THREE.Mesh(geo, mat);
 }
 
-function getPointerWorld(e) {
-  const container = document.getElementById("game-container");
-  const rect = container.getBoundingClientRect();
-  const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-  const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-  mouse.set(x, y);
-  raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObject(groundPlane);
-  if (hits.length) {
-    const p = hits[0].point;
-    return { x: p.x, z: p.z };
-  }
-  return null;
+function dist3(x1, y1, z1, x2, y2, z2) {
+  const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+function getViewBasis(yaw, pitch, roll) {
+  const e = new THREE.Euler(pitch, yaw, roll, "YXZ");
+  const forward = new THREE.Vector3(0, 0, -1).applyEuler(e);
+  const right = new THREE.Vector3(1, 0, 0).applyEuler(e);
+  const up = new THREE.Vector3(0, 1, 0).applyEuler(e);
+  return { forward, right, up };
 }
 
 function loadLevel(idx) {
@@ -225,14 +230,35 @@ function loadLevel(idx) {
   w = rect.width;
   h = rect.height;
 
-  wanderer = { x: levelData.wanderer[0] * w - w / 2, z: -(levelData.wanderer[1] * h - h / 2), state: "alive", breathTimer: 0, fallTimer: 0, riseTimer: 0, invulnTimer: 0, lightsOutCooldown: 0 };
-  smoothedPointer.x = wanderer.x;
-  smoothedPointer.z = wanderer.z;
-  paleOnes = levelData.paleOnes.map(([px, py]) => ({ x: px * w - w / 2, z: -(py * h - h / 2) }));
-  crowd = levelData.crowd.map(([cx, cy]) => ({ x: cx * w - w / 2, z: -(cy * h - h / 2), progress: 0, awakened: false }));
+  const halfW = ARENA_W / 2, halfD = ARENA_H / 2;
+  wanderer = {
+    x: levelData.wanderer[0] * ARENA_W - halfW,
+    y: ENTITY_HEIGHT,
+    z: -(levelData.wanderer[1] * ARENA_H - halfD),
+    yaw: 0, pitch: 0, roll: 0,
+    state: "alive",
+    breathTimer: 0, fallTimer: 0, riseTimer: 0,
+    invulnTimer: 0, lightsOutCooldown: 0,
+    jumpRemaining: 0, jumpVx: 0, jumpVy: 0, jumpVz: 0,
+    boostRemaining: 0, boostVx: 0, boostVy: 0, boostVz: 0,
+    boostCooldown: 0, boostInvuln: 0
+  };
+  paleOnes = levelData.paleOnes.map(([px, py]) => ({
+    x: px * ARENA_W - halfW,
+    y: ENTITY_HEIGHT,
+    z: -(py * ARENA_H - halfD)
+  }));
+  crowd = levelData.crowd.map(([cx, cy]) => ({
+    x: cx * ARENA_W - halfW,
+    y: ENTITY_HEIGHT,
+    z: -(cy * ARENA_H - halfD),
+    progress: 0,
+    awakened: false
+  }));
 
   if (groundMesh) scene.remove(groundMesh);
-  if (groundPlane && groundPlane.parent) scene.remove(groundPlane);
+  walls.forEach(w => scene.remove(w));
+  walls = [];
   if (wandererMesh) scene.remove(wandererMesh);
   paleMeshes.forEach(m => scene.remove(m));
   crowdMeshes.forEach(m => scene.remove(m));
@@ -240,30 +266,44 @@ function loadLevel(idx) {
   const [r, g, b] = levelData.bg;
   scene.background = new THREE.Color(r / 255, g / 255, b / 255);
 
-  const groundGeo = new THREE.PlaneGeometry(w, h);
   const groundMat = new THREE.MeshStandardMaterial({
     color: new THREE.Color((r + 5) / 255, (g + 5) / 255, (b + 15) / 255),
     metalness: 0,
     roughness: 1
   });
-  groundMesh = new THREE.Mesh(groundGeo, groundMat);
+  groundMesh = new THREE.Mesh(new THREE.PlaneGeometry(ARENA_W, ARENA_H), groundMat);
   groundMesh.rotation.x = -Math.PI / 2;
-  groundMesh.position.y = floorY;
+  groundMesh.position.set(0, FLOOR_Y, 0);
   scene.add(groundMesh);
-  groundPlane = new THREE.Mesh(groundGeo.clone(), new THREE.MeshBasicMaterial({ visible: false }));
-  groundPlane.rotation.x = -Math.PI / 2;
-  groundPlane.position.y = floorY;
-  scene.add(groundPlane);
+
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color((r + 2) / 255, (g + 2) / 255, (b + 8) / 255),
+    metalness: 0,
+    roughness: 1
+  });
+  const wallThick = 4;
+  const addWall = (px, py, pz, sx, sy, sz) => {
+    const w = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), wallMat);
+    w.position.set(px, py, pz);
+    scene.add(w);
+    walls.push(w);
+  };
+  addWall(0, ARENA_DEPTH / 2, -halfD - wallThick / 2, ARENA_W + wallThick * 2, ARENA_DEPTH, wallThick);
+  addWall(0, ARENA_DEPTH / 2, halfD + wallThick / 2, ARENA_W + wallThick * 2, ARENA_DEPTH, wallThick);
+  addWall(-halfW - wallThick / 2, ARENA_DEPTH / 2, 0, wallThick, ARENA_DEPTH, ARENA_H + wallThick * 2);
+  addWall(halfW + wallThick / 2, ARENA_DEPTH / 2, 0, wallThick, ARENA_DEPTH, ARENA_H + wallThick * 2);
+  addWall(0, ARENA_DEPTH + wallThick / 2, 0, ARENA_W + wallThick * 2, wallThick, ARENA_H + wallThick * 2);
 
   const wr = AccessOptions.WANDERER_R;
   wandererMesh = makeSphere(wr, 0x5a5a5f);
-  wandererMesh.position.set(wanderer.x, floorY + wr, wanderer.z);
+  wandererMesh.position.set(wanderer.x, wanderer.y + wr, wanderer.z);
+  wandererMesh.visible = false;
   scene.add(wandererMesh);
 
   const paleR = AccessOptions.PALE_R;
-  paleMeshes = paleOnes.map((p, i) => {
+  paleMeshes = paleOnes.map((p) => {
     const m = makeSphere(paleR, 0xdcd2c8);
-    m.position.set(p.x, floorY + paleR, p.z);
+    m.position.set(p.x, p.y + paleR, p.z);
     scene.add(m);
     return m;
   });
@@ -271,7 +311,7 @@ function loadLevel(idx) {
   const crowdR = AccessOptions.CROWD_R;
   crowdMeshes = crowd.map((c, i) => {
     const m = makeSphere(crowdR, 0x606060);
-    m.position.set(c.x, floorY + crowdR, c.z);
+    m.position.set(c.x, c.y + crowdR, c.z);
     m.userData = { index: i };
     scene.add(m);
     return m;
@@ -301,42 +341,78 @@ function handleBreathe() {
   }
 }
 
+function handleJump() {
+  if (wanderer.state !== "alive" && wanderer.state !== "breathing") return;
+  if (wanderer.jumpRemaining > 0) return;
+  const { up } = getViewBasis(wanderer.yaw, wanderer.pitch, wanderer.roll);
+  wanderer.jumpVx = up.x * JUMP_SPEED;
+  wanderer.jumpVy = up.y * JUMP_SPEED;
+  wanderer.jumpVz = up.z * JUMP_SPEED;
+  wanderer.jumpRemaining = JUMP_DURATION;
+}
+
+function handleBoost() {
+  if (wanderer.state !== "alive" && wanderer.state !== "breathing") return;
+  if (wanderer.boostCooldown > 0) return;
+  const { forward, right, up } = getViewBasis(wanderer.yaw, wanderer.pitch, wanderer.roll);
+  let dx = forward.x * moveInput.thrust + right.x * moveInput.slideRight + up.x * moveInput.slideUp;
+  let dy = forward.y * moveInput.thrust + right.y * moveInput.slideRight + up.y * moveInput.slideUp;
+  let dz = forward.z * moveInput.thrust + right.z * moveInput.slideRight + up.z * moveInput.slideUp;
+  if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01 && Math.abs(dz) < 0.01) {
+    dx = forward.x;
+    dy = forward.y;
+    dz = forward.z;
+  }
+  const len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+  wanderer.boostVx = (dx / len) * BOOST_SPEED;
+  wanderer.boostVy = (dy / len) * BOOST_SPEED;
+  wanderer.boostVz = (dz / len) * BOOST_SPEED;
+  wanderer.boostRemaining = BOOST_DURATION;
+  wanderer.boostCooldown = BOOST_COOLDOWN;
+  wanderer.boostInvuln = BOOST_DURATION;
+}
+
 function update(dt) {
   if (state !== "playing") return;
 
-  let targetX = wanderer.x, targetZ = wanderer.z;
-  if (!AccessOptions.keyboard || (!keyInput.dx && !keyInput.dz)) {
-    const world = getPointerWorld({ clientX: pointer.x, clientY: pointer.y });
-    if (world) {
-      targetX = world.x;
-      targetZ = world.z;
+  if (wanderer.boostCooldown > 0) wanderer.boostCooldown -= dt;
+
+  wanderer.roll += moveInput.roll * ROLL_SPEED * dt;
+  wanderer.roll *= 0.9;
+
+  if (wanderer.boostRemaining > 0) {
+    wanderer.x += wanderer.boostVx * dt * 60;
+    wanderer.y += wanderer.boostVy * dt * 60;
+    wanderer.z += wanderer.boostVz * dt * 60;
+    wanderer.boostRemaining -= dt;
+    if (wanderer.boostInvuln > 0) wanderer.boostInvuln -= dt;
+  } else if (wanderer.jumpRemaining > 0) {
+    wanderer.x += wanderer.jumpVx * dt * 60;
+    wanderer.y += wanderer.jumpVy * dt * 60;
+    wanderer.z += wanderer.jumpVz * dt * 60;
+    wanderer.jumpRemaining -= dt;
+  } else if (wanderer.state === "alive" || wanderer.state === "breathing") {
+    const { forward, right, up } = getViewBasis(wanderer.yaw, wanderer.pitch, wanderer.roll);
+    const move = forward.clone().multiplyScalar(moveInput.thrust)
+      .add(right.clone().multiplyScalar(moveInput.slideRight))
+      .add(up.clone().multiplyScalar(moveInput.slideUp));
+    const len = move.length();
+    if (len > 0.01) {
+      move.normalize().multiplyScalar(MOVE_SPEED * dt * 60);
+      wanderer.x += move.x;
+      wanderer.y += move.y;
+      wanderer.z += move.z;
     }
   }
 
-  if (AccessOptions.cursorSmoothing) {
-    smoothedPointer.x += (targetX - smoothedPointer.x) * SMOOTH_FACTOR;
-    smoothedPointer.z += (targetZ - smoothedPointer.z) * SMOOTH_FACTOR;
-  } else {
-    smoothedPointer.x = targetX;
-    smoothedPointer.z = targetZ;
-  }
-
-  if (wanderer.state === "alive" || wanderer.state === "breathing") {
-    let px, pz;
-    if (AccessOptions.keyboard && (keyInput.dx || keyInput.dz)) {
-      const dist = Math.hypot(keyInput.dx, keyInput.dz) || 1;
-      px = wanderer.x + (keyInput.dx / dist) * KEYBOARD_SPEED;
-      pz = wanderer.z + (keyInput.dz / dist) * KEYBOARD_SPEED;
-    } else {
-      px = AccessOptions.cursorSmoothing ? smoothedPointer.x : targetX;
-      pz = AccessOptions.cursorSmoothing ? smoothedPointer.z : targetZ;
-    }
-    const wr = AccessOptions.WANDERER_R;
-    const halfW = w / 2 - wr;
-    const halfH = h / 2 - wr;
-    wanderer.x = Math.max(-halfW, Math.min(halfW, px));
-    wanderer.z = Math.max(-halfH, Math.min(halfH, pz));
-  }
+  const wr = AccessOptions.WANDERER_R;
+  const minY = FLOOR_Y + wr;
+  const maxY = ARENA_DEPTH - wr;
+  const halfW = ARENA_W / 2 - wr;
+  const halfD = ARENA_H / 2 - wr;
+  wanderer.x = Math.max(-halfW, Math.min(halfW, wanderer.x));
+  wanderer.y = Math.max(minY, Math.min(maxY, wanderer.y));
+  wanderer.z = Math.max(-halfD, Math.min(halfD, wanderer.z));
 
   if (wanderer.state === "breathing") {
     wanderer.breathTimer--;
@@ -358,18 +434,17 @@ function update(dt) {
 
   if (wanderer.lightsOutCooldown > 0) wanderer.lightsOutCooldown--;
 
-  const invuln = wanderer.invulnTimer > 0 || wanderer.state === "falling" || wanderer.state === "rising";
+  const invuln = wanderer.invulnTimer > 0 || wanderer.state === "falling" || wanderer.state === "rising" || wanderer.boostInvuln > 0;
   if (!invuln) {
     const speed = AccessOptions.PALE_SPEED;
     const colR = AccessOptions.COLLISION_RADIUS;
     for (let i = 0; i < paleOnes.length; i++) {
       const p = paleOnes[i];
-      const dx = wanderer.x - p.x;
-      const dz = wanderer.z - p.z;
-      const d = Math.hypot(dx, dz) || 1;
-      p.x += (dx / d) * speed;
-      p.z += (dz / d) * speed;
-      if (Math.hypot(wanderer.x - p.x, wanderer.z - p.z) < colR) {
+      const d = dist3(wanderer.x, wanderer.y, wanderer.z, p.x, p.y, p.z) || 1;
+      p.x += ((wanderer.x - p.x) / d) * speed;
+      p.y += ((wanderer.y - p.y) / d) * speed;
+      p.z += ((wanderer.z - p.z) / d) * speed;
+      if (dist3(wanderer.x, wanderer.y, wanderer.z, p.x, p.y, p.z) < colR) {
         Audio.caught();
         loadLevel(levelIndex);
         return;
@@ -381,7 +456,7 @@ function update(dt) {
   const awakenTime = AccessOptions.AWAKEN_TIME;
   for (const c of crowd) {
     if (c.awakened) continue;
-    const dist = Math.hypot(wanderer.x - c.x, wanderer.z - c.z);
+    const dist = dist3(wanderer.x, wanderer.y, wanderer.z, c.x, c.y, c.z);
     if (dist < awakenRadius && wanderer.state === "alive") {
       c.progress = Math.min(awakenTime, c.progress + 1);
       if (c.progress >= awakenTime) {
@@ -396,16 +471,20 @@ function update(dt) {
   if (awakenedCount >= levelData.awakenGoal) {
     state = "level_complete";
     Audio.levelComplete();
+    if (document.pointerLockElement) document.exitPointerLock();
     document.getElementById("level-complete").classList.add("visible");
     document.getElementById("complete-level-name").textContent = levelData.name;
-    document.body.style.cursor = "default";
   }
 }
 
 function draw() {
   if (!wandererMesh) return;
 
-  wandererMesh.position.set(wanderer.x, floorY + AccessOptions.WANDERER_R, wanderer.z);
+  camera.position.set(wanderer.x, wanderer.y + AccessOptions.WANDERER_R, wanderer.z);
+  camera.rotation.order = "YXZ";
+  camera.rotation.set(wanderer.pitch, wanderer.yaw, wanderer.roll);
+
+  wandererMesh.position.set(wanderer.x, wanderer.y + AccessOptions.WANDERER_R, wanderer.z);
   if (wanderer.state === "falling") {
     wandererMesh.material.opacity = Math.max(0, wanderer.fallTimer / 60);
     wandererMesh.material.transparent = true;
@@ -425,14 +504,14 @@ function draw() {
   }
 
   paleOnes.forEach((p, i) => {
-    if (paleMeshes[i]) paleMeshes[i].position.set(p.x, floorY + AccessOptions.PALE_R, p.z);
+    if (paleMeshes[i]) paleMeshes[i].position.set(p.x, p.y + AccessOptions.PALE_R, p.z);
   });
 
   const awakenTime = AccessOptions.AWAKEN_TIME;
   crowd.forEach((c, i) => {
     const m = crowdMeshes[i];
     if (!m) return;
-    m.position.set(c.x, floorY + AccessOptions.CROWD_R, c.z);
+    m.position.set(c.x, c.y + AccessOptions.CROWD_R, c.z);
     if (c.awakened) {
       m.material.color.setHex(0xff8c32);
     } else {
@@ -445,12 +524,53 @@ function draw() {
   document.getElementById("vow-display").textContent = vowText;
 }
 
+function renderMirrors() {
+  if (!rearCamera || !mirrorRenderTarget) return;
+  const pos = camera.position.clone();
+  const rot = camera.rotation.clone();
+
+  rearCamera.position.copy(pos);
+  rearCamera.rotation.copy(rot);
+  rearCamera.rotateY(Math.PI);
+  rearCamera.updateMatrixWorld();
+  renderer.setRenderTarget(mirrorRenderTarget);
+  renderer.clear();
+  renderer.render(scene, rearCamera);
+
+  rearLeftCamera.position.copy(pos);
+  rearLeftCamera.rotation.copy(rot);
+  rearLeftCamera.rotateY(Math.PI + 0.4);
+  rearLeftCamera.updateMatrixWorld();
+  renderer.setRenderTarget(mirrorLeftTarget);
+  renderer.clear();
+  renderer.render(scene, rearLeftCamera);
+
+  rearRightCamera.position.copy(pos);
+  rearRightCamera.rotation.copy(rot);
+  rearRightCamera.rotateY(Math.PI - 0.4);
+  rearRightCamera.updateMatrixWorld();
+  renderer.setRenderTarget(mirrorRightTarget);
+  renderer.clear();
+  renderer.render(scene, rearRightCamera);
+
+  renderer.setRenderTarget(null);
+}
+
 function gameLoop(timestamp) {
   const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
   lastTime = timestamp;
   update(dt);
-  if (state === "playing") draw();
-  renderer.render(scene, camera);
+  if (state === "playing") {
+    draw();
+    renderMirrors();
+    renderer.render(scene, camera);
+    renderer.autoClear = false;
+    renderer.clearDepth();
+    renderer.render(mirrorScene, mirrorCamera);
+    renderer.autoClear = true;
+  } else {
+    renderer.render(scene, camera);
+  }
   requestAnimationFrame(gameLoop);
 }
 
@@ -462,20 +582,21 @@ function startGame() {
   document.getElementById("game-hud").classList.add("visible");
   document.getElementById("vow-display").classList.add("visible");
   document.getElementById("breathe-btn").classList.add("visible");
-  document.body.style.cursor = "none";
+  document.getElementById("click-to-play").classList.add("visible");
 }
 
 function showMenu() {
   state = "menu";
   Music.stop();
-  keyInput.dx = keyInput.dz = 0;
+  moveInput.thrust = moveInput.slideUp = moveInput.slideRight = moveInput.roll = 0;
   Object.keys(keysDown).forEach(k => { keysDown[k] = false; });
+  if (document.pointerLockElement) document.exitPointerLock();
   document.getElementById("menu").classList.remove("hidden");
   document.getElementById("game-hud").classList.remove("visible");
   document.getElementById("vow-display").classList.remove("visible");
   document.getElementById("breathe-btn").classList.remove("visible");
   document.getElementById("level-complete").classList.remove("visible");
-  document.body.style.cursor = "default";
+  document.getElementById("click-to-play").classList.remove("visible");
 }
 
 function onContinue() {
@@ -483,7 +604,6 @@ function onContinue() {
   state = "playing";
   loadLevel(levelIndex);
   document.getElementById("level-complete").classList.remove("visible");
-  document.body.style.cursor = "none";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -495,14 +615,69 @@ document.addEventListener("DOMContentLoaded", () => {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x050514);
 
-  camera = new THREE.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, 0.1, 10000);
-  camera.position.set(0, 400, 0);
-  camera.lookAt(0, 0, 0);
+  camera = new THREE.PerspectiveCamera(60, w / h, 1, 10000);
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   container.appendChild(renderer.domElement);
+
+  const MIRROR_W = 256;
+  const MIRROR_H = 128;
+  const rtOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter };
+  mirrorRenderTarget = new THREE.WebGLRenderTarget(MIRROR_W, MIRROR_H, rtOpts);
+  mirrorLeftTarget = new THREE.WebGLRenderTarget(MIRROR_W, MIRROR_H, rtOpts);
+  mirrorRightTarget = new THREE.WebGLRenderTarget(MIRROR_W, MIRROR_H, rtOpts);
+  rearCamera = new THREE.PerspectiveCamera(55, MIRROR_W / MIRROR_H, 1, 10000);
+  rearLeftCamera = new THREE.PerspectiveCamera(50, MIRROR_W / MIRROR_H, 1, 10000);
+  rearRightCamera = new THREE.PerspectiveCamera(50, MIRROR_W / MIRROR_H, 1, 10000);
+
+  mirrorScene = new THREE.Scene();
+  mirrorCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const mirrorMat = new THREE.MeshBasicMaterial({
+    map: mirrorRenderTarget.texture,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false
+  });
+  const mirrorGeo = new THREE.PlaneGeometry(1, 1);
+  const frameMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a, depthTest: false, depthWrite: false });
+  const centerMirror = new THREE.Mesh(mirrorGeo, mirrorMat);
+  centerMirror.scale.set(0.4, 0.15, 1);
+  centerMirror.position.set(0, 0.82, -0.4);
+  const centerFrame = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), frameMat);
+  centerFrame.scale.set(0.42, 0.17, 1);
+  centerFrame.position.set(0, 0.82, -0.5);
+  mirrorScene.add(centerFrame);
+  mirrorScene.add(centerMirror);
+  const leftMirrorMat = new THREE.MeshBasicMaterial({
+    map: mirrorLeftTarget.texture,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false
+  });
+  const leftMirror = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), leftMirrorMat);
+  leftMirror.scale.set(0.16, 0.11, 1);
+  leftMirror.position.set(-0.88, 0.82, -0.4);
+  const leftFrame = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), frameMat);
+  leftFrame.scale.set(0.18, 0.13, 1);
+  leftFrame.position.set(-0.88, 0.82, -0.5);
+  mirrorScene.add(leftFrame);
+  mirrorScene.add(leftMirror);
+  const rightMirrorMat = new THREE.MeshBasicMaterial({
+    map: mirrorRightTarget.texture,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false
+  });
+  const rightMirror = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), rightMirrorMat);
+  rightMirror.scale.set(0.16, 0.11, 1);
+  rightMirror.position.set(0.88, 0.82, -0.4);
+  const rightFrame = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), frameMat);
+  rightFrame.scale.set(0.18, 0.13, 1);
+  rightFrame.position.set(0.88, 0.82, -0.5);
+  mirrorScene.add(rightFrame);
+  mirrorScene.add(rightMirror);
 
   const ambLight = new THREE.AmbientLight(0x404060, 0.6);
   scene.add(ambLight);
@@ -510,25 +685,17 @@ document.addEventListener("DOMContentLoaded", () => {
   dirLight.position.set(100, 200, 100);
   scene.add(dirLight);
 
-  raycaster = new THREE.Raycaster();
-  mouse = new THREE.Vector2();
-  groundPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ visible: false }));
-
   function resize() {
     const rect = container.getBoundingClientRect();
     w = rect.width;
     h = rect.height;
-    camera.left = -w / 2;
-    camera.right = w / 2;
-    camera.top = h / 2;
-    camera.bottom = -h / 2;
+    camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
-    if (state === "playing" && groundMesh && groundPlane) {
-      groundMesh.geometry.dispose();
-      groundMesh.geometry = new THREE.PlaneGeometry(w, h);
-      groundPlane.geometry.dispose();
-      groundPlane.geometry = new THREE.PlaneGeometry(w, h);
+    if (mirrorRenderTarget) {
+      mirrorRenderTarget.setSize(256, 128);
+      if (mirrorLeftTarget) mirrorLeftTarget.setSize(256, 128);
+      if (mirrorRightTarget) mirrorRightTarget.setSize(256, 128);
     }
   }
   window.addEventListener("resize", resize);
@@ -556,9 +723,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("opt-larger-hitboxes").checked = AccessOptions.largerHitboxes;
     document.getElementById("opt-slower-pale").checked = AccessOptions.slowerPale;
     document.getElementById("opt-longer-awaken").checked = AccessOptions.longerAwaken;
-    document.getElementById("opt-keyboard").checked = AccessOptions.keyboard;
     document.getElementById("opt-audio-cues").checked = AccessOptions.audioCues;
-    document.getElementById("opt-cursor-smoothing").checked = AccessOptions.cursorSmoothing;
     document.getElementById("opt-music").checked = AccessOptions.music;
     document.getElementById("accessibility-modal").classList.add("visible");
   });
@@ -568,9 +733,7 @@ document.addEventListener("DOMContentLoaded", () => {
     AccessOptions.largerHitboxes = document.getElementById("opt-larger-hitboxes").checked;
     AccessOptions.slowerPale = document.getElementById("opt-slower-pale").checked;
     AccessOptions.longerAwaken = document.getElementById("opt-longer-awaken").checked;
-    AccessOptions.keyboard = document.getElementById("opt-keyboard").checked;
     AccessOptions.audioCues = document.getElementById("opt-audio-cues").checked;
-    AccessOptions.cursorSmoothing = document.getElementById("opt-cursor-smoothing").checked;
     AccessOptions.music = document.getElementById("opt-music").checked;
     AccessOptions.save();
     if (AccessOptions.music) Music.start();
@@ -590,58 +753,65 @@ document.addEventListener("DOMContentLoaded", () => {
     onContinue();
   });
 
+  container.addEventListener("click", () => {
+    if (state === "playing" && !document.pointerLockElement) {
+      container.requestPointerLock();
+    }
+  });
+
+  document.addEventListener("pointerlockchange", () => {
+    isPointerLocked = !!document.pointerLockElement;
+    const hint = document.getElementById("click-to-play");
+    hint.classList.toggle("visible", state === "playing" && !isPointerLocked);
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (state === "playing" && isPointerLocked) {
+      wanderer.yaw += e.movementX * MOUSE_SENSITIVITY;
+      wanderer.pitch -= e.movementY * MOUSE_SENSITIVITY;
+      wanderer.pitch = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, wanderer.pitch));
+    }
+  });
+
   document.addEventListener("keydown", (e) => {
     if (e.code === "Space") {
       e.preventDefault();
       if (state === "playing") handleBreathe();
     }
-    if (e.code === "Escape") {
-      if (state === "playing") showMenu();
+    if (e.code === "KeyV") {
+      e.preventDefault();
+      if (state === "playing") handleJump();
     }
-    if (AccessOptions.keyboard && state === "playing") {
-      const moveKeys = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "KeyW", "KeyS", "KeyA", "KeyD"];
-      if (moveKeys.includes(e.code)) {
-        e.preventDefault();
-        keysDown[e.code] = true;
-        keyInput.dz = (keysDown.ArrowUp || keysDown.KeyW) ? 1 : (keysDown.ArrowDown || keysDown.KeyS) ? -1 : 0;
-        keyInput.dx = (keysDown.ArrowLeft || keysDown.KeyA) ? -1 : (keysDown.ArrowRight || keysDown.KeyD) ? 1 : 0;
-      }
+    if (e.code === "KeyR") {
+      e.preventDefault();
+      if (state === "playing") handleBoost();
+    }
+    if ((e.code === "ControlLeft" || e.code === "ControlRight" || e.code === "ShiftLeft" || e.code === "ShiftRight") && state === "playing") {
+      e.preventDefault();
+    }
+    if (e.code === "Escape") {
+      if (document.pointerLockElement) document.exitPointerLock();
+      else if (state === "playing") showMenu();
+    }
+    if (state === "playing") {
+      if (e.code === "ShiftLeft" || e.code === "ShiftRight") { keysDown.Shift = true; moveInput.thrust = 1; }
+      if (e.code === "ControlLeft" || e.code === "ControlRight") { keysDown.Ctrl = true; moveInput.thrust = -1; }
+      if (e.code === "KeyW") { keysDown.KeyW = true; moveInput.slideUp = 1; }
+      if (e.code === "KeyS") { keysDown.KeyS = true; moveInput.slideUp = -1; }
+      if (e.code === "KeyA") { keysDown.KeyA = true; moveInput.slideRight = -1; }
+      if (e.code === "KeyD") { keysDown.KeyD = true; moveInput.slideRight = 1; }
+      if (e.code === "KeyQ") { keysDown.KeyQ = true; moveInput.roll = -1; }
+      if (e.code === "KeyE") { keysDown.KeyE = true; moveInput.roll = 1; }
     }
   });
 
   document.addEventListener("keyup", (e) => {
-    if (AccessOptions.keyboard && state === "playing") {
-      if (["ArrowUp", "ArrowDown", "KeyW", "KeyS"].includes(e.code)) {
-        keysDown[e.code] = false;
-        keyInput.dz = (keysDown.ArrowUp || keysDown.KeyW) ? 1 : (keysDown.ArrowDown || keysDown.KeyS) ? -1 : 0;
-      }
-      if (["ArrowLeft", "ArrowRight", "KeyA", "KeyD"].includes(e.code)) {
-        keysDown[e.code] = false;
-        keyInput.dx = (keysDown.ArrowLeft || keysDown.KeyA) ? -1 : (keysDown.ArrowRight || keysDown.KeyD) ? 1 : 0;
-      }
-    }
+    if (e.code === "ShiftLeft" || e.code === "ShiftRight") { keysDown.Shift = false; moveInput.thrust = keysDown.Ctrl ? -1 : keysDown.Shift ? 1 : 0; }
+    if (e.code === "ControlLeft" || e.code === "ControlRight") { keysDown.Ctrl = false; moveInput.thrust = keysDown.Ctrl ? -1 : keysDown.Shift ? 1 : 0; }
+    if (e.code === "KeyW" || e.code === "KeyS") { keysDown[e.code] = false; moveInput.slideUp = keysDown.KeyW ? 1 : keysDown.KeyS ? -1 : 0; }
+    if (e.code === "KeyA" || e.code === "KeyD") { keysDown[e.code] = false; moveInput.slideRight = keysDown.KeyD ? 1 : keysDown.KeyA ? -1 : 0; }
+    if (e.code === "KeyQ" || e.code === "KeyE") { keysDown[e.code] = false; moveInput.roll = keysDown.KeyE ? 1 : keysDown.KeyQ ? -1 : 0; }
   });
-
-  container.addEventListener("pointermove", (e) => {
-    e.preventDefault();
-    pointer.x = e.clientX;
-    pointer.y = e.clientY;
-  });
-
-  container.addEventListener("pointerenter", (e) => {
-    pointer.x = e.clientX;
-    pointer.y = e.clientY;
-  });
-
-  document.addEventListener("mousemove", (e) => {
-    if (state === "playing") {
-      pointer.x = e.clientX;
-      pointer.y = e.clientY;
-    }
-  });
-
-  container.addEventListener("touchstart", e => e.preventDefault(), { passive: false });
-  container.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
 
   requestAnimationFrame(gameLoop);
 });

@@ -3,16 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Thirty Seven — A Parable</title>
+  <title>Thirty Seven — A Parable (3D)</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div id="app">
-    <canvas id="canvas"></canvas>
+    <div id="cursor" class="hidden"></div>
+    <div id="game-container"></div>
 
     <div id="menu">
       <h1>THIRTY SEVEN</h1>
       <p class="subtitle">A Parable of Desire, Death,<br>and the Undying Cycle</p>
+      <p class="subtitle variant">3D</p>
       <button id="play-btn">PLAY</button>
       <button id="how-btn">HOW TO PLAY</button>
       <button id="accessibility-btn">ACCESSIBILITY</button>
@@ -59,9 +61,9 @@
         <h2>How to Play</h2>
         <ul>
           <li><strong>Mouse / Touch:</strong> Move the Wanderer</li>
-          <li><strong>Get near souls</strong> (grey circles) to awaken them</li>
+          <li><strong>Get near souls</strong> (grey spheres) to awaken them</li>
           <li><strong>Awakened souls</strong> turn amber—reach the goal to advance</li>
-          <li><strong>Avoid the Pale Ones</strong> (pale circles)—they hunt you</li>
+          <li><strong>Avoid the Pale Ones</strong> (pale spheres)—they hunt you</li>
           <li><strong>Tap BREATHE</strong>, then <strong>LIGHTS OUT</strong> to become invulnerable</li>
           <li>During fall/rise you cannot be caught</li>
         </ul>
@@ -88,6 +90,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

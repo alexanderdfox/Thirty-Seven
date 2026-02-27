@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Thirty Seven — A Parable (3D)</title>
+  <title>Thirty Seven — 6DOF</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
     <div id="menu">
       <h1>THIRTY SEVEN</h1>
       <p class="subtitle">A Parable of Desire, Death,<br>and the Undying Cycle</p>
-      <p class="subtitle variant">3D</p>
+      <p class="subtitle variant">6DOF — YOU ARE THE CAMERA</p>
       <button id="play-btn">PLAY</button>
       <button id="how-btn">HOW TO PLAY</button>
       <button id="accessibility-btn">ACCESSIBILITY</button>
@@ -25,7 +25,7 @@
         <p class="accessibility-note">Adjust for motor control, tremor, or rhythm support.</p>
         <div class="accessibility-option">
           <label><input type="checkbox" id="opt-larger-hitboxes"> Larger hitboxes</label>
-          <span class="opt-desc">Bigger Wanderer, souls, and awaken radius</span>
+          <span class="opt-desc">Bigger awaken radius and collision</span>
         </div>
         <div class="accessibility-option">
           <label><input type="checkbox" id="opt-slower-pale"> Slower Pale Ones</label>
@@ -36,16 +36,8 @@
           <span class="opt-desc">More time near souls to awaken them</span>
         </div>
         <div class="accessibility-option">
-          <label><input type="checkbox" id="opt-keyboard"> Keyboard controls</label>
-          <span class="opt-desc">WASD / arrows to move (no mouse required)</span>
-        </div>
-        <div class="accessibility-option">
           <label><input type="checkbox" id="opt-audio-cues"> Breathe audio cues</label>
           <span class="opt-desc">Tick when ready for Lights Out</span>
-        </div>
-        <div class="accessibility-option">
-          <label><input type="checkbox" id="opt-cursor-smoothing"> Cursor smoothing</label>
-          <span class="opt-desc">Reduced sensitivity for steadier movement</span>
         </div>
         <div class="accessibility-option">
           <label><input type="checkbox" id="opt-music"> Background music</label>
@@ -59,12 +51,19 @@
       <div class="modal-content">
         <h2>How to Play</h2>
         <ul>
-          <li><strong>Mouse / Touch:</strong> Move the Wanderer</li>
+          <li><strong>You are the camera.</strong> Forward = where you look.</li>
+          <li><strong>Mouse:</strong> Look. Click to lock.</li>
+          <li><strong>Shift / Ctrl:</strong> Move into / out of the scene</li>
+          <li><strong>W / S:</strong> Move up / down (view space)</li>
+          <li><strong>A / D:</strong> Move left / right</li>
+          <li><strong>Q / E:</strong> Roll</li>
+          <li><strong>V:</strong> Jump burst (view up)</li>
+          <li><strong>R:</strong> Boost (view direction + invuln)</li>
           <li><strong>Get near souls</strong> (grey spheres) to awaken them</li>
           <li><strong>Awakened souls</strong> turn amber—reach the goal to advance</li>
           <li><strong>Avoid the Pale Ones</strong> (pale spheres)—they hunt you</li>
-          <li><strong>Tap BREATHE</strong>, then <strong>LIGHTS OUT</strong> to become invulnerable</li>
-          <li>During fall/rise you cannot be caught</li>
+          <li><strong>SPACE:</strong> BREATHE, then LIGHTS OUT to become invulnerable</li>
+          <li>During fall/rise you cannot be caught. ESC to unlock mouse.</li>
         </ul>
         <p class="vow">While true. Breathe. Fall. Rise. Done.</p>
         <p class="fire">The fire never dies.</p>
@@ -87,6 +86,8 @@
       <p id="complete-level-name"></p>
       <button id="continue-btn">Continue</button>
     </div>
+
+    <div id="click-to-play">Click to lock camera — Mouse to look</div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>

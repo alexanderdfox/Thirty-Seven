@@ -2,25 +2,21 @@
 
 A Parable of Desire, Death, and the Undying Cycle.
 
-HTML5 Canvas + JavaScript. Play in any modern browser. Touch and mouse supported.
+Three.js top-down 3D. Orthographic view, pointer-to-world movement. Custom cursor sprites, touch and mouse supported.
 
 ## Run
 
 Open `index.html` in a browser, or serve with any static server:
 
 ```bash
-# Python
+cd games/web
 python -m http.server 8000
-
-# Node (npx)
-npx serve .
-
 # Then open http://localhost:8000
 ```
 
 ## Controls
 
-- **Mouse / Touch + drag**: Move the Wanderer
+- **Mouse / Touch**: Move the Wanderer (pointer position on ground)
 - **BREATHE button** or **SPACE**: First tap = Breathe, second = Lights Out
 - **ESC**: Return to menu
 
@@ -28,6 +24,8 @@ npx serve .
 
 - 6 preset levels + infinite random levels
 - Procedural sounds (Web Audio API)
+- Custom cursor (OS cursor disabled)
+- Accessibility options (keyboard, cursor smoothing, etc.)
 - Responsive, works on mobile
 - Dark theme, amber accents
 
