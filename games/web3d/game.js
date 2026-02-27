@@ -1,6 +1,6 @@
 /**
  * THIRTY SEVEN — A Parable of Desire, Death, and the Undying Cycle
- * HTML5 Canvas / JavaScript
+ * Three.js 3D Version
  */
 
 function coolColor(seed) {
@@ -78,20 +78,24 @@ const AccessOptions = {
 };
 AccessOptions.load();
 
-let canvas, ctx, w, h;
+let scene, camera, renderer, w, h;
 let state = "menu";
 let levelIndex = 0;
 let levelData = null;
-let wanderer = { x: 0, y: 0, state: "alive", breathTimer: 0, fallTimer: 0, riseTimer: 0, invulnTimer: 0, lightsOutCooldown: 0 };
+let wanderer = { x: 0, z: 0, state: "alive", breathTimer: 0, fallTimer: 0, riseTimer: 0, invulnTimer: 0, lightsOutCooldown: 0 };
 let paleOnes = [];
 let crowd = [];
 let pointer = { x: 0, y: 0 };
-let smoothedPointer = { x: 0, y: 0 };
-let keyInput = { dx: 0, dy: 0 };
+let smoothedPointer = { x: 0, z: 0 };
+let keyInput = { dx: 0, dz: 0 };
 const keysDown = {};
 const KEYBOARD_SPEED = 4;
 const SMOOTH_FACTOR = 0.15;
 let lastTime = 0;
+
+let groundPlane, groundMesh, wandererMesh, paleMeshes = [], crowdMeshes = [];
+let raycaster, mouse;
+const floorY = 0;
 
 const Audio = {
   ctx: null,
@@ -133,12 +137,7 @@ const Music = {
     const rng = seededRandom(seed);
     const roots = [55, 61.74, 65.41, 73.42, 82.41, 92.5, 98, 110];
     const root = roots[Math.floor(rng() * roots.length)];
-    const intervals = [
-      [1, 1.5, 2],
-      [1, 1.26, 1.5],
-      [1, 1.5, 2.25],
-      [1, 1.41, 2]
-    ];
+    const intervals = [[1, 1.5, 2], [1, 1.26, 1.5], [1, 1.5, 2.25], [1, 1.41, 2]];
     const [a, b, c] = intervals[Math.floor(rng() * intervals.length)];
     return [root * a, root * b, root * c];
   },
@@ -156,7 +155,6 @@ const Music = {
     this.gain = ctx.createGain();
     this.gain.gain.value = 0;
     this.gain.connect(ctx.destination);
-
     const detune = [0, 3, -2];
     notes.forEach((freq, i) => {
       const osc = ctx.createOscillator();
@@ -170,18 +168,13 @@ const Music = {
       osc.start(ctx.currentTime);
       this.nodes.push({ osc, gain: g });
     });
-
     this.gain.gain.setValueAtTime(0, ctx.currentTime);
     this.gain.gain.linearRampToValueAtTime(0.28, ctx.currentTime + 5);
   },
   setLevel(levelSeed) {
     if (!this.nodes.length) return;
     const notes = this.notesForSeed(levelSeed);
-    const ctx = this.ctx;
-    const t = ctx.currentTime;
-    this.nodes.forEach((n, i) => {
-      n.osc.frequency.setTargetAtTime(notes[i], t, 1.5);
-    });
+    this.nodes.forEach((n, i) => n.osc.frequency.setTargetAtTime(notes[i], this.ctx.currentTime, 1.5));
     this.seed = levelSeed;
   },
   stop() {
@@ -196,29 +189,97 @@ const Music = {
   setTint(r, g, b) {
     if (!this.nodes.length) return;
     const warmth = Math.min(1, (r + g) / (r + g + Math.max(b, 1)));
-    const base = 0.1;
-    const bright = 0.05 + warmth * 0.05;
+    const base = 0.1, bright = 0.05 + warmth * 0.05;
     this.nodes[0].gain.gain.linearRampToValueAtTime(base, this.ctx.currentTime + 2);
     this.nodes[1].gain.gain.linearRampToValueAtTime(base + bright, this.ctx.currentTime + 2);
     this.nodes[2].gain.gain.linearRampToValueAtTime(bright, this.ctx.currentTime + 2);
   }
 };
 
+function makeSphere(radius, color) {
+  const geo = new THREE.SphereGeometry(radius, 16, 16);
+  const mat = new THREE.MeshStandardMaterial({ color, metalness: 0.1, roughness: 0.8 });
+  return new THREE.Mesh(geo, mat);
+}
+
+function getPointerWorld(e) {
+  const container = document.getElementById("game-container");
+  const rect = container.getBoundingClientRect();
+  const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  mouse.set(x, y);
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObject(groundPlane);
+  if (hits.length) {
+    const p = hits[0].point;
+    return { x: p.x, z: p.z };
+  }
+  return null;
+}
+
 function loadLevel(idx) {
   levelData = idx < LEVELS.length ? LEVELS[idx] : generateRandomLevel(idx + 1);
   if (!levelData.bg) levelData.bg = coolColor(idx);
-  const rect = canvas.getBoundingClientRect();
+  const container = document.getElementById("game-container");
+  const rect = container.getBoundingClientRect();
   w = rect.width;
   h = rect.height;
-  wanderer = { x: levelData.wanderer[0] * w, y: levelData.wanderer[1] * h, state: "alive", breathTimer: 0, fallTimer: 0, riseTimer: 0, invulnTimer: 0, lightsOutCooldown: 0 };
-  pointer.x = rect.left + w / 2;
-  pointer.y = rect.top + h / 2;
-  smoothedPointer.x = w / 2;
-  smoothedPointer.y = h / 2;
-  paleOnes = levelData.paleOnes.map(([px, py]) => ({ x: px * w, y: py * h }));
-  crowd = levelData.crowd.map(([cx, cy]) => ({ x: cx * w, y: cy * h, progress: 0, awakened: false }));
+
+  wanderer = { x: levelData.wanderer[0] * w - w / 2, z: -(levelData.wanderer[1] * h - h / 2), state: "alive", breathTimer: 0, fallTimer: 0, riseTimer: 0, invulnTimer: 0, lightsOutCooldown: 0 };
+  smoothedPointer.x = wanderer.x;
+  smoothedPointer.z = wanderer.z;
+  paleOnes = levelData.paleOnes.map(([px, py]) => ({ x: px * w - w / 2, z: -(py * h - h / 2) }));
+  crowd = levelData.crowd.map(([cx, cy]) => ({ x: cx * w - w / 2, z: -(cy * h - h / 2), progress: 0, awakened: false }));
+
+  if (groundMesh) scene.remove(groundMesh);
+  if (groundPlane && groundPlane.parent) scene.remove(groundPlane);
+  if (wandererMesh) scene.remove(wandererMesh);
+  paleMeshes.forEach(m => scene.remove(m));
+  crowdMeshes.forEach(m => scene.remove(m));
+
+  const [r, g, b] = levelData.bg;
+  scene.background = new THREE.Color(r / 255, g / 255, b / 255);
+
+  const groundGeo = new THREE.PlaneGeometry(w, h);
+  const groundMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color((r + 5) / 255, (g + 5) / 255, (b + 15) / 255),
+    metalness: 0,
+    roughness: 1
+  });
+  groundMesh = new THREE.Mesh(groundGeo, groundMat);
+  groundMesh.rotation.x = -Math.PI / 2;
+  groundMesh.position.y = floorY;
+  scene.add(groundMesh);
+  groundPlane = new THREE.Mesh(groundGeo.clone(), new THREE.MeshBasicMaterial({ visible: false }));
+  groundPlane.rotation.x = -Math.PI / 2;
+  groundPlane.position.y = floorY;
+  scene.add(groundPlane);
+
+  const wr = AccessOptions.WANDERER_R;
+  wandererMesh = makeSphere(wr, 0x5a5a5f);
+  wandererMesh.position.set(wanderer.x, floorY + wr, wanderer.z);
+  scene.add(wandererMesh);
+
+  const paleR = AccessOptions.PALE_R;
+  paleMeshes = paleOnes.map((p, i) => {
+    const m = makeSphere(paleR, 0xdcd2c8);
+    m.position.set(p.x, floorY + paleR, p.z);
+    scene.add(m);
+    return m;
+  });
+
+  const crowdR = AccessOptions.CROWD_R;
+  crowdMeshes = crowd.map((c, i) => {
+    const m = makeSphere(crowdR, 0x606060);
+    m.position.set(c.x, floorY + crowdR, c.z);
+    m.userData = { index: i };
+    scene.add(m);
+    return m;
+  });
+
   document.getElementById("level-name").textContent = levelData.name;
   document.getElementById("awaken-count").textContent = `0/${levelData.awakenGoal}`;
+
   if (AccessOptions.music) {
     const levelSeed = idx < LEVELS.length ? idx : idx + 1000;
     if (Music.nodes.length) Music.setLevel(levelSeed);
@@ -243,31 +304,38 @@ function handleBreathe() {
 function update(dt) {
   if (state !== "playing") return;
 
-  const r = canvas.getBoundingClientRect();
-  const targetX = pointer.x - r.left;
-  const targetY = pointer.y - r.top;
+  let targetX = wanderer.x, targetZ = wanderer.z;
+  if (!AccessOptions.keyboard || (!keyInput.dx && !keyInput.dz)) {
+    const world = getPointerWorld({ clientX: pointer.x, clientY: pointer.y });
+    if (world) {
+      targetX = world.x;
+      targetZ = world.z;
+    }
+  }
 
   if (AccessOptions.cursorSmoothing) {
     smoothedPointer.x += (targetX - smoothedPointer.x) * SMOOTH_FACTOR;
-    smoothedPointer.y += (targetY - smoothedPointer.y) * SMOOTH_FACTOR;
+    smoothedPointer.z += (targetZ - smoothedPointer.z) * SMOOTH_FACTOR;
   } else {
     smoothedPointer.x = targetX;
-    smoothedPointer.y = targetY;
+    smoothedPointer.z = targetZ;
   }
 
   if (wanderer.state === "alive" || wanderer.state === "breathing") {
-    let px, py;
-    if (AccessOptions.keyboard && (keyInput.dx || keyInput.dy)) {
-      const dist = Math.hypot(keyInput.dx, keyInput.dy) || 1;
+    let px, pz;
+    if (AccessOptions.keyboard && (keyInput.dx || keyInput.dz)) {
+      const dist = Math.hypot(keyInput.dx, keyInput.dz) || 1;
       px = wanderer.x + (keyInput.dx / dist) * KEYBOARD_SPEED;
-      py = wanderer.y + (keyInput.dy / dist) * KEYBOARD_SPEED;
+      pz = wanderer.z + (keyInput.dz / dist) * KEYBOARD_SPEED;
     } else {
       px = AccessOptions.cursorSmoothing ? smoothedPointer.x : targetX;
-      py = AccessOptions.cursorSmoothing ? smoothedPointer.y : targetY;
+      pz = AccessOptions.cursorSmoothing ? smoothedPointer.z : targetZ;
     }
     const wr = AccessOptions.WANDERER_R;
-    wanderer.x = Math.max(wr, Math.min(w - wr, px));
-    wanderer.y = Math.max(wr, Math.min(h - wr, py));
+    const halfW = w / 2 - wr;
+    const halfH = h / 2 - wr;
+    wanderer.x = Math.max(-halfW, Math.min(halfW, px));
+    wanderer.z = Math.max(-halfH, Math.min(halfH, pz));
   }
 
   if (wanderer.state === "breathing") {
@@ -292,13 +360,16 @@ function update(dt) {
 
   const invuln = wanderer.invulnTimer > 0 || wanderer.state === "falling" || wanderer.state === "rising";
   if (!invuln) {
-    for (let p of paleOnes) {
+    const speed = AccessOptions.PALE_SPEED;
+    const colR = AccessOptions.COLLISION_RADIUS;
+    for (let i = 0; i < paleOnes.length; i++) {
+      const p = paleOnes[i];
       const dx = wanderer.x - p.x;
-      const dy = wanderer.y - p.y;
-      const speed = AccessOptions.PALE_SPEED;
-      p.x += (dx / (Math.hypot(dx, dy) || 1)) * speed;
-      p.y += (dy / (Math.hypot(dx, dy) || 1)) * speed;
-      if (Math.hypot(wanderer.x - p.x, wanderer.y - p.y) < AccessOptions.COLLISION_RADIUS) {
+      const dz = wanderer.z - p.z;
+      const d = Math.hypot(dx, dz) || 1;
+      p.x += (dx / d) * speed;
+      p.z += (dz / d) * speed;
+      if (Math.hypot(wanderer.x - p.x, wanderer.z - p.z) < colR) {
         Audio.caught();
         loadLevel(levelIndex);
         return;
@@ -306,22 +377,20 @@ function update(dt) {
     }
   }
 
-  let awakenedCount = 0;
-  for (let c of crowd) {
-    if (c.awakened) { awakenedCount++; continue; }
-    const dist = Math.hypot(wanderer.x - c.x, wanderer.y - c.y);
-    const awakenRadius = AccessOptions.AWAKEN_RADIUS;
-    const awakenTime = AccessOptions.AWAKEN_TIME;
+  const awakenRadius = AccessOptions.AWAKEN_RADIUS;
+  const awakenTime = AccessOptions.AWAKEN_TIME;
+  for (const c of crowd) {
+    if (c.awakened) continue;
+    const dist = Math.hypot(wanderer.x - c.x, wanderer.z - c.z);
     if (dist < awakenRadius && wanderer.state === "alive") {
       c.progress = Math.min(awakenTime, c.progress + 1);
       if (c.progress >= awakenTime) {
         c.awakened = true;
         Audio.awaken();
       }
-      if (c.awakened) awakenedCount++;
     }
   }
-  awakenedCount = crowd.filter(c => c.awakened).length;
+  const awakenedCount = crowd.filter(c => c.awakened).length;
   document.getElementById("awaken-count").textContent = `${awakenedCount}/${levelData.awakenGoal}`;
 
   if (awakenedCount >= levelData.awakenGoal) {
@@ -334,59 +403,43 @@ function update(dt) {
 }
 
 function draw() {
-  ctx.fillStyle = `rgb(${levelData.bg[0]},${levelData.bg[1]},${levelData.bg[2]})`;
-  ctx.fillRect(0, 0, w, h);
+  if (!wandererMesh) return;
 
-  const crowdR = AccessOptions.CROWD_R;
+  wandererMesh.position.set(wanderer.x, floorY + AccessOptions.WANDERER_R, wanderer.z);
+  if (wanderer.state === "falling") {
+    wandererMesh.material.opacity = Math.max(0, wanderer.fallTimer / 60);
+    wandererMesh.material.transparent = true;
+  } else if (wanderer.state === "rising") {
+    wandererMesh.material.opacity = 0.5 + (1 - wanderer.riseTimer / 45) * 0.5;
+    wandererMesh.material.transparent = true;
+  } else {
+    wandererMesh.material.opacity = 1;
+    wandererMesh.material.transparent = false;
+  }
+  if (wanderer.invulnTimer > 0) {
+    wandererMesh.material.emissive = new THREE.Color(0xffb350);
+    wandererMesh.material.emissiveIntensity = 0.3;
+  } else {
+    wandererMesh.material.emissive = new THREE.Color(0);
+    wandererMesh.material.emissiveIntensity = 0;
+  }
+
+  paleOnes.forEach((p, i) => {
+    if (paleMeshes[i]) paleMeshes[i].position.set(p.x, floorY + AccessOptions.PALE_R, p.z);
+  });
+
   const awakenTime = AccessOptions.AWAKEN_TIME;
-  for (const c of crowd) {
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, crowdR, 0, Math.PI * 2);
+  crowd.forEach((c, i) => {
+    const m = crowdMeshes[i];
+    if (!m) return;
+    m.position.set(c.x, floorY + AccessOptions.CROWD_R, c.z);
     if (c.awakened) {
-      ctx.fillStyle = "#ff8c32";
+      m.material.color.setHex(0xff8c32);
     } else {
       const g = 60 + Math.floor((c.progress / awakenTime) * 80);
-      ctx.fillStyle = `rgb(${g},${g},${g + 5})`;
+      m.material.color.setRGB(g / 255, g / 255, (g + 5) / 255);
     }
-    ctx.fill();
-    if (c.progress > 0 && !c.awakened) {
-      ctx.strokeStyle = "#ffb350";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, crowdR - 2, 0, (c.progress / awakenTime) * Math.PI * 2);
-      ctx.stroke();
-    }
-  }
-
-  const paleR = AccessOptions.PALE_R;
-  for (const p of paleOnes) {
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, paleR, 0, Math.PI * 2);
-    ctx.fillStyle = "#dcd2c8";
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(p.x - 5, p.y - 3, 3, 0, Math.PI * 2);
-    ctx.arc(p.x + 5, p.y - 3, 3, 0, Math.PI * 2);
-    ctx.fillStyle = "#b4aac8";
-    ctx.fill();
-  }
-
-  if (wanderer.state === "falling") {
-    ctx.globalAlpha = Math.max(0, wanderer.fallTimer / 60);
-  } else if (wanderer.state === "rising") {
-    ctx.globalAlpha = 0.5 + (1 - wanderer.riseTimer / 45) * 0.5;
-  }
-  const wandererR = AccessOptions.WANDERER_R;
-  ctx.beginPath();
-  ctx.arc(wanderer.x, wanderer.y, wandererR, 0, Math.PI * 2);
-  ctx.fillStyle = "#5a5a5f";
-  ctx.fill();
-  if (wanderer.invulnTimer > 0) {
-    ctx.strokeStyle = "#ffb350";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
+  });
 
   const vowText = wanderer.state === "breathing" ? "Breathe..." : wanderer.state === "falling" ? "Fall." : wanderer.state === "rising" ? "Rise." : "While true. Do.";
   document.getElementById("vow-display").textContent = vowText;
@@ -397,6 +450,7 @@ function gameLoop(timestamp) {
   lastTime = timestamp;
   update(dt);
   if (state === "playing") draw();
+  renderer.render(scene, camera);
   requestAnimationFrame(gameLoop);
 }
 
@@ -414,7 +468,7 @@ function startGame() {
 function showMenu() {
   state = "menu";
   Music.stop();
-  keyInput.dx = keyInput.dy = 0;
+  keyInput.dx = keyInput.dz = 0;
   Object.keys(keysDown).forEach(k => { keysDown[k] = false; });
   document.getElementById("menu").classList.remove("hidden");
   document.getElementById("game-hud").classList.remove("visible");
@@ -433,21 +487,51 @@ function onContinue() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  canvas = document.getElementById("canvas");
-  ctx = canvas.getContext("2d");
+  const container = document.getElementById("game-container");
+  const rect = container.getBoundingClientRect();
+  w = rect.width;
+  h = rect.height;
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x050514);
+
+  camera = new THREE.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, 0.1, 10000);
+  camera.position.set(0, 400, 0);
+  camera.lookAt(0, 0, 0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  container.appendChild(renderer.domElement);
+
+  const ambLight = new THREE.AmbientLight(0x404060, 0.6);
+  scene.add(ambLight);
+  const dirLight = new THREE.DirectionalLight(0xffeedd, 0.8);
+  dirLight.position.set(100, 200, 100);
+  scene.add(dirLight);
+
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+  groundPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ visible: false }));
 
   function resize() {
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.scale(dpr, dpr);
+    const rect = container.getBoundingClientRect();
     w = rect.width;
     h = rect.height;
+    camera.left = -w / 2;
+    camera.right = w / 2;
+    camera.top = h / 2;
+    camera.bottom = -h / 2;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+    if (state === "playing" && groundMesh && groundPlane) {
+      groundMesh.geometry.dispose();
+      groundMesh.geometry = new THREE.PlaneGeometry(w, h);
+      groundPlane.geometry.dispose();
+      groundPlane.geometry = new THREE.PlaneGeometry(w, h);
+    }
   }
   window.addEventListener("resize", resize);
-  resize();
 
   document.getElementById("play-btn").addEventListener("click", () => {
     Audio.menuTap();
@@ -519,7 +603,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (moveKeys.includes(e.code)) {
         e.preventDefault();
         keysDown[e.code] = true;
-        keyInput.dy = (keysDown.ArrowUp || keysDown.KeyW) ? -1 : (keysDown.ArrowDown || keysDown.KeyS) ? 1 : 0;
+        keyInput.dz = (keysDown.ArrowUp || keysDown.KeyW) ? 1 : (keysDown.ArrowDown || keysDown.KeyS) ? -1 : 0;
         keyInput.dx = (keysDown.ArrowLeft || keysDown.KeyA) ? -1 : (keysDown.ArrowRight || keysDown.KeyD) ? 1 : 0;
       }
     }
@@ -529,7 +613,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (AccessOptions.keyboard && state === "playing") {
       if (["ArrowUp", "ArrowDown", "KeyW", "KeyS"].includes(e.code)) {
         keysDown[e.code] = false;
-        keyInput.dy = (keysDown.ArrowUp || keysDown.KeyW) ? -1 : (keysDown.ArrowDown || keysDown.KeyS) ? 1 : 0;
+        keyInput.dz = (keysDown.ArrowUp || keysDown.KeyW) ? 1 : (keysDown.ArrowDown || keysDown.KeyS) ? -1 : 0;
       }
       if (["ArrowLeft", "ArrowRight", "KeyA", "KeyD"].includes(e.code)) {
         keysDown[e.code] = false;
@@ -538,18 +622,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  canvas.addEventListener("pointermove", (e) => {
+  container.addEventListener("pointermove", (e) => {
     e.preventDefault();
     pointer.x = e.clientX;
     pointer.y = e.clientY;
   });
 
-  canvas.addEventListener("pointerenter", (e) => {
-    pointer.x = e.clientX;
-    pointer.y = e.clientY;
-  });
-
-  canvas.addEventListener("pointerdown", (e) => {
+  container.addEventListener("pointerenter", (e) => {
     pointer.x = e.clientX;
     pointer.y = e.clientY;
   });
@@ -561,8 +640,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  canvas.addEventListener("touchstart", e => e.preventDefault(), { passive: false });
-  canvas.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
+  container.addEventListener("touchstart", e => e.preventDefault(), { passive: false });
+  container.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
 
   requestAnimationFrame(gameLoop);
 });
