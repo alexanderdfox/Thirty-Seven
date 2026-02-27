@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Thirty Seven — A Parable</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="canvas"></canvas>
+
+    <div id="menu">
+      <h1>THIRTY SEVEN</h1>
+      <p class="subtitle">A Parable of Desire, Death,<br>and the Undying Cycle</p>
+      <button id="play-btn">PLAY</button>
+      <button id="how-btn">HOW TO PLAY</button>
+    </div>
+
+    <div id="how-modal" class="modal">
+      <div class="modal-content">
+        <h2>How to Play</h2>
+        <ul>
+          <li><strong>Mouse / Touch:</strong> Move the Wanderer</li>
+          <li><strong>Get near souls</strong> (grey circles) to awaken them</li>
+          <li><strong>Awakened souls</strong> turn amber—reach the goal to advance</li>
+          <li><strong>Avoid the Pale Ones</strong> (pale circles)—they hunt you</li>
+          <li><strong>Tap BREATHE</strong>, then <strong>LIGHTS OUT</strong> to become invulnerable</li>
+          <li>During fall/rise you cannot be caught</li>
+        </ul>
+        <p class="vow">While true. Breathe. Fall. Rise. Done.</p>
+        <p class="fire">The fire never dies.</p>
+        <button id="close-how">Done</button>
+      </div>
+    </div>
+
+    <div id="game-hud">
+      <button id="back-btn">←</button>
+      <span id="level-name"></span>
+      <span id="awaken-count">0/0</span>
+    </div>
+
+    <div id="vow-display">While true. Do.</div>
+
+    <button id="breathe-btn">BREATHE</button>
+
+    <div id="level-complete" class="overlay">
+      <h2>LEVEL COMPLETE</h2>
+      <p id="complete-level-name"></p>
+      <button id="continue-btn">Continue</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
