@@ -74,7 +74,7 @@ const AccessOptions = {
 };
 AccessOptions.load();
 
-const ARENA_W = 400, ARENA_H = 400, ARENA_DEPTH = 300;
+const ARENA_W = 800, ARENA_H = 800, ARENA_DEPTH = 600;
 const MOVE_SPEED = 10;
 const ROLL_SPEED = 2;
 const JUMP_SPEED = 12;
@@ -246,7 +246,8 @@ function loadLevel(idx) {
   paleOnes = levelData.paleOnes.map(([px, py]) => ({
     x: px * ARENA_W - halfW,
     y: ENTITY_HEIGHT,
-    z: -(py * ARENA_H - halfD)
+    z: -(py * ARENA_H - halfD),
+    vx: 0, vy: 0, vz: 0
   }));
   crowd = levelData.crowd.map(([cx, cy]) => ({
     x: cx * ARENA_W - halfW,
@@ -435,15 +436,80 @@ function update(dt) {
   if (wanderer.lightsOutCooldown > 0) wanderer.lightsOutCooldown--;
 
   const invuln = wanderer.invulnTimer > 0 || wanderer.state === "falling" || wanderer.state === "rising" || wanderer.boostInvuln > 0;
-  if (!invuln) {
+  if (!invuln && paleOnes.length > 0) {
     const speed = AccessOptions.PALE_SPEED;
     const colR = AccessOptions.COLLISION_RADIUS;
+    const n = paleOnes.length;
+    const swarmFactor = n <= 1 ? 0 : Math.min(1, (n - 1) * 0.18);
+    const sepR = Math.max(AccessOptions.PALE_R * 2.5 + 12, 50 + n * 5);
+    const cohR = 110 + n * 12;
+    const seekK = 1.2;
+    const repelK = 2.2;
+    const cohK = 0.12;
     for (let i = 0; i < paleOnes.length; i++) {
       const p = paleOnes[i];
-      const d = dist3(wanderer.x, wanderer.y, wanderer.z, p.x, p.y, p.z) || 1;
-      p.x += ((wanderer.x - p.x) / d) * speed;
-      p.y += ((wanderer.y - p.y) / d) * speed;
-      p.z += ((wanderer.z - p.z) / d) * speed;
+      let fx = 0, fy = 0, fz = 0;
+      const dx0 = wanderer.x - p.x, dy0 = wanderer.y - p.y, dz0 = wanderer.z - p.z;
+      const d0 = dist3(0, 0, 0, dx0, dy0, dz0) || 1;
+      fx += (dx0 / d0) * seekK;
+      fy += (dy0 / d0) * seekK;
+      fz += (dz0 / d0) * seekK;
+      for (let j = 0; j < paleOnes.length; j++) {
+        if (j === i) continue;
+        const q = paleOnes[j];
+        const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z;
+        const d = dist3(0, 0, 0, dx, dy, dz) || 0.01;
+        if (d < sepR) {
+          const s = (sepR - d) / sepR * swarmFactor * repelK;
+          fx -= (dx / d) * s;
+          fy -= (dy / d) * s;
+          fz -= (dz / d) * s;
+        } else if (d < cohR) {
+          const s = (1 - (d - sepR) / (cohR - sepR)) * swarmFactor * cohK;
+          fx += (dx / d) * s;
+          fy += (dy / d) * s;
+          fz += (dz / d) * s;
+        }
+      }
+      const fMag = dist3(0, 0, 0, fx, fy, fz) || 1;
+      p.vx = p.vx * 0.88 + (fx / fMag) * speed * 0.4;
+      p.vy = p.vy * 0.88 + (fy / fMag) * speed * 0.4;
+      p.vz = p.vz * 0.88 + (fz / fMag) * speed * 0.4;
+      const vMag = dist3(0, 0, 0, p.vx, p.vy, p.vz);
+      if (vMag > speed) {
+        const scale = speed / vMag;
+        p.vx *= scale; p.vy *= scale; p.vz *= scale;
+      }
+      p.x += p.vx;
+      p.y += p.vy;
+      p.z += p.vz;
+      const halfW = ARENA_W / 2 - 25, halfD = ARENA_H / 2 - 25;
+      const minY = FLOOR_Y + AccessOptions.PALE_R;
+      const maxY = ARENA_DEPTH - AccessOptions.PALE_R;
+      p.x = Math.max(-halfW, Math.min(halfW, p.x));
+      p.y = Math.max(minY, Math.min(maxY, p.y));
+      p.z = Math.max(-halfD, Math.min(halfD, p.z));
+    }
+    const minDist = AccessOptions.PALE_R * 2.5;
+    for (let i = 0; i < paleOnes.length; i++) {
+      for (let j = i + 1; j < paleOnes.length; j++) {
+        const p = paleOnes[i], q = paleOnes[j];
+        const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z;
+        const d = dist3(0, 0, 0, dx, dy, dz) || 0.01;
+        if (d < minDist) {
+          const overlap = minDist - d;
+          const nx = dx / d, ny = dy / d, nz = dz / d;
+          p.x -= nx * overlap * 0.5;
+          p.y -= ny * overlap * 0.5;
+          p.z -= nz * overlap * 0.5;
+          q.x += nx * overlap * 0.5;
+          q.y += ny * overlap * 0.5;
+          q.z += nz * overlap * 0.5;
+        }
+      }
+    }
+    for (let i = 0; i < paleOnes.length; i++) {
+      const p = paleOnes[i];
       if (dist3(wanderer.x, wanderer.y, wanderer.z, p.x, p.y, p.z) < colR) {
         Audio.caught();
         loadLevel(levelIndex);

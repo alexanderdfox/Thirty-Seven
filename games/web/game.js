@@ -228,7 +228,7 @@ function loadLevel(idx) {
   wanderer = { x: levelData.wanderer[0] * w - w / 2, z: -(levelData.wanderer[1] * h - h / 2), state: "alive", breathTimer: 0, fallTimer: 0, riseTimer: 0, invulnTimer: 0, lightsOutCooldown: 0 };
   smoothedPointer.x = wanderer.x;
   smoothedPointer.z = wanderer.z;
-  paleOnes = levelData.paleOnes.map(([px, py]) => ({ x: px * w - w / 2, z: -(py * h - h / 2) }));
+  paleOnes = levelData.paleOnes.map(([px, py]) => ({ x: px * w - w / 2, z: -(py * h - h / 2), vx: 0, vz: 0 }));
   crowd = levelData.crowd.map(([cx, cy]) => ({ x: cx * w - w / 2, z: -(cy * h - h / 2), progress: 0, awakened: false }));
 
   if (groundMesh) scene.remove(groundMesh);
@@ -359,16 +359,70 @@ function update(dt) {
   if (wanderer.lightsOutCooldown > 0) wanderer.lightsOutCooldown--;
 
   const invuln = wanderer.invulnTimer > 0 || wanderer.state === "falling" || wanderer.state === "rising";
-  if (!invuln) {
+  if (!invuln && paleOnes.length > 0) {
     const speed = AccessOptions.PALE_SPEED;
     const colR = AccessOptions.COLLISION_RADIUS;
+    const n = paleOnes.length;
+    const swarmFactor = n <= 1 ? 0 : Math.min(1, (n - 1) * 0.18);
+    const sepR = Math.max(AccessOptions.PALE_R * 2.5 + 12, 40 + n * 4);
+    const cohR = 90 + n * 10;
+    const seekK = 1.2;
+    const repelK = 2.2;
+    const cohK = 0.12;
     for (let i = 0; i < paleOnes.length; i++) {
       const p = paleOnes[i];
-      const dx = wanderer.x - p.x;
-      const dz = wanderer.z - p.z;
-      const d = Math.hypot(dx, dz) || 1;
-      p.x += (dx / d) * speed;
-      p.z += (dz / d) * speed;
+      let fx = 0, fz = 0;
+      const dx0 = wanderer.x - p.x, dz0 = wanderer.z - p.z;
+      const d0 = Math.hypot(dx0, dz0) || 1;
+      fx += (dx0 / d0) * seekK;
+      fz += (dz0 / d0) * seekK;
+      for (let j = 0; j < paleOnes.length; j++) {
+        if (j === i) continue;
+        const q = paleOnes[j];
+        const dx = q.x - p.x, dz = q.z - p.z;
+        const d = Math.hypot(dx, dz) || 0.01;
+        if (d < sepR) {
+          const s = (sepR - d) / sepR * swarmFactor * repelK;
+          fx -= (dx / d) * s;
+          fz -= (dz / d) * s;
+        } else if (d < cohR) {
+          const s = (1 - (d - sepR) / (cohR - sepR)) * swarmFactor * cohK;
+          fx += (dx / d) * s;
+          fz += (dz / d) * s;
+        }
+      }
+      const fMag = Math.hypot(fx, fz) || 1;
+      p.vx = p.vx * 0.88 + (fx / fMag) * speed * 0.4;
+      p.vz = p.vz * 0.88 + (fz / fMag) * speed * 0.4;
+      const vMag = Math.hypot(p.vx, p.vz);
+      if (vMag > speed) {
+        p.vx = (p.vx / vMag) * speed;
+        p.vz = (p.vz / vMag) * speed;
+      }
+      p.x += p.vx;
+      p.z += p.vz;
+      const halfW = w / 2 - 20, halfH = h / 2 - 20;
+      p.x = Math.max(-halfW, Math.min(halfW, p.x));
+      p.z = Math.max(-halfH, Math.min(halfH, p.z));
+    }
+    const minDist = AccessOptions.PALE_R * 2.5;
+    for (let i = 0; i < paleOnes.length; i++) {
+      for (let j = i + 1; j < paleOnes.length; j++) {
+        const p = paleOnes[i], q = paleOnes[j];
+        const dx = q.x - p.x, dz = q.z - p.z;
+        const d = Math.hypot(dx, dz) || 0.01;
+        if (d < minDist) {
+          const overlap = minDist - d;
+          const nx = dx / d, nz = dz / d;
+          p.x -= nx * overlap * 0.5;
+          p.z -= nz * overlap * 0.5;
+          q.x += nx * overlap * 0.5;
+          q.z += nz * overlap * 0.5;
+        }
+      }
+    }
+    for (let i = 0; i < paleOnes.length; i++) {
+      const p = paleOnes[i];
       if (Math.hypot(wanderer.x - p.x, wanderer.z - p.z) < colR) {
         Audio.caught();
         loadLevel(levelIndex);
