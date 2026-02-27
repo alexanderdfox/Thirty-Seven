@@ -1,6 +1,6 @@
 # Thirty Seven — A Pygame Parable
 
-A video game adaptation of the screenplay *Thirty Seven: A Parable of Desire, Death, and the Undying Cycle*.
+Aligned with the web 2D version. Pale Ones swarm (N-body, keep distance). **Musical instrument**: move through the crowd to play notes; awakening souls creates melody. Procedural sine-tone audio.
 
 ## How to Run
 
@@ -12,11 +12,12 @@ python main.py
 
 ## How to Play
 
-- **WASD** or **Arrow keys**: Move the Wanderer
-- **SPACE**: First press begins *Breathe* (a brief pause before the fall)
+- **Mouse** or **WASD/Arrows**: Move the Wanderer
+- **SPACE**: First press begins *Breathe* (3–7 second pause before the fall)
 - **SPACE** (again during Breathe): *Lights Out* — voluntary death. You fall, then rise again, briefly invulnerable.
 - **Goal**: Awaken the crowd (get near them and stay near—they fill with light) while avoiding the Pale Ones.
-- **Win**: Awaken enough souls in each era to progress. Complete all six levels.
+- **Music**: Each soul has a note. Moving near them plays tones. The space is an instrument.
+- **Win**: Awaken enough souls in each era within 37 seconds. Complete all six levels.
 
 ## The Cycle
 

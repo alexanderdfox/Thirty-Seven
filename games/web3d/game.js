@@ -90,7 +90,8 @@ let scene, camera, renderer, w, h;
 let state = "menu";
 let levelIndex = 0;
 let levelData = null;
-let wanderer = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, state: "alive", breathTimer: 0, fallTimer: 0, riseTimer: 0, invulnTimer: 0, lightsOutCooldown: 0, jumpRemaining: 0, jumpVx: 0, jumpVy: 0, jumpVz: 0, boostRemaining: 0, boostVx: 0, boostVy: 0, boostVz: 0, boostCooldown: 0, boostInvuln: 0 };
+let wanderer = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, state: "alive", breathTimer: 0, breathCuePlayed: false, fallTimer: 0, riseTimer: 0, invulnTimer: 0, lightsOutCooldown: 0, jumpRemaining: 0, jumpVx: 0, jumpVy: 0, jumpVz: 0, boostRemaining: 0, boostVx: 0, boostVy: 0, boostVz: 0, boostCooldown: 0, boostInvuln: 0 };
+let levelTimer = 37 * 60;
 let paleOnes = [];
 let crowd = [];
 let moveInput = { thrust: 0, slideUp: 0, slideRight: 0, roll: 0 };
@@ -231,13 +232,14 @@ function loadLevel(idx) {
   h = rect.height;
 
   const halfW = ARENA_W / 2, halfD = ARENA_H / 2;
+  levelTimer = 37 * 60;
   wanderer = {
     x: levelData.wanderer[0] * ARENA_W - halfW,
     y: ENTITY_HEIGHT,
     z: -(levelData.wanderer[1] * ARENA_H - halfD),
     yaw: 0, pitch: 0, roll: 0,
     state: "alive",
-    breathTimer: 0, fallTimer: 0, riseTimer: 0,
+    breathTimer: 0, breathCuePlayed: false, fallTimer: 0, riseTimer: 0,
     invulnTimer: 0, lightsOutCooldown: 0,
     jumpRemaining: 0, jumpVx: 0, jumpVy: 0, jumpVz: 0,
     boostRemaining: 0, boostVx: 0, boostVy: 0, boostVz: 0,
@@ -254,6 +256,7 @@ function loadLevel(idx) {
     y: ENTITY_HEIGHT,
     z: -(cy * ARENA_H - halfD),
     progress: 0,
+    subProgress: 0,
     awakened: false
   }));
 
@@ -332,11 +335,12 @@ function loadLevel(idx) {
 function handleBreathe() {
   if (wanderer.state === "alive" && wanderer.lightsOutCooldown <= 0) {
     wanderer.state = "breathing";
-    wanderer.breathTimer = 30;
+    wanderer.breathTimer = 60 * (3 + Math.random() * 4);
+    wanderer.breathCuePlayed = false;
     Audio.breathe();
   } else if (wanderer.state === "breathing") {
     wanderer.state = "falling";
-    wanderer.fallTimer = 60;
+    wanderer.fallTimer = 300;
     wanderer.lightsOutCooldown = 180;
     Audio.lightsOut();
   }
@@ -417,14 +421,17 @@ function update(dt) {
 
   if (wanderer.state === "breathing") {
     wanderer.breathTimer--;
-    if (wanderer.breathTimer === 15 && AccessOptions.audioCues) Audio.play(440, 0.05, 0.1);
+    if (wanderer.breathTimer <= 60 && !wanderer.breathCuePlayed && AccessOptions.audioCues) {
+      wanderer.breathCuePlayed = true;
+      Audio.play(440, 0.05, 0.1);
+    }
     if (wanderer.breathTimer <= 0) wanderer.state = "alive";
   } else if (wanderer.state === "falling") {
     wanderer.fallTimer--;
     if (wanderer.fallTimer <= 0) {
       wanderer.state = "rising";
-      wanderer.riseTimer = 45;
-      wanderer.invulnTimer = 90;
+      wanderer.riseTimer = 300;
+      wanderer.invulnTimer = 300;
       Audio.rise();
     }
   } else if (wanderer.state === "rising") {
@@ -520,19 +527,25 @@ function update(dt) {
 
   const awakenRadius = AccessOptions.AWAKEN_RADIUS;
   const awakenTime = AccessOptions.AWAKEN_TIME;
+  const hitsPerProgress = 1 + Math.floor(levelIndex / 10);
   for (const c of crowd) {
     if (c.awakened) continue;
     const dist = dist3(wanderer.x, wanderer.y, wanderer.z, c.x, c.y, c.z);
     if (dist < awakenRadius && wanderer.state === "alive") {
-      c.progress = Math.min(awakenTime, c.progress + 1);
-      if (c.progress >= awakenTime) {
-        c.awakened = true;
-        Audio.awaken();
+      c.subProgress = (c.subProgress || 0) + 1;
+      while (c.subProgress >= hitsPerProgress && c.progress < awakenTime) {
+        c.subProgress -= hitsPerProgress;
+        c.progress = Math.min(awakenTime, c.progress + 1);
+        if (c.progress >= awakenTime) {
+          c.awakened = true;
+          Audio.awaken();
+          break;
+        }
       }
     }
   }
   const awakenedCount = crowd.filter(c => c.awakened).length;
-  document.getElementById("awaken-count").textContent = `${awakenedCount}/${levelData.awakenGoal}`;
+  document.getElementById("awaken-count").textContent = `${Math.max(0, Math.floor(levelTimer / 60))}  ${awakenedCount}/${levelData.awakenGoal}`;
 
   if (awakenedCount >= levelData.awakenGoal) {
     state = "level_complete";
@@ -540,6 +553,12 @@ function update(dt) {
     if (document.pointerLockElement) document.exitPointerLock();
     document.getElementById("level-complete").classList.add("visible");
     document.getElementById("complete-level-name").textContent = levelData.name;
+  } else {
+    levelTimer--;
+    if (levelTimer <= 0) {
+      Audio.caught();
+      loadLevel(levelIndex);
+    }
   }
 }
 
@@ -552,10 +571,10 @@ function draw() {
 
   wandererMesh.position.set(wanderer.x, wanderer.y + AccessOptions.WANDERER_R, wanderer.z);
   if (wanderer.state === "falling") {
-    wandererMesh.material.opacity = Math.max(0, wanderer.fallTimer / 60);
+    wandererMesh.material.opacity = Math.max(0, wanderer.fallTimer / 300);
     wandererMesh.material.transparent = true;
   } else if (wanderer.state === "rising") {
-    wandererMesh.material.opacity = 0.5 + (1 - wanderer.riseTimer / 45) * 0.5;
+    wandererMesh.material.opacity = 0.5 + (1 - wanderer.riseTimer / 300) * 0.5;
     wandererMesh.material.transparent = true;
   } else {
     wandererMesh.material.opacity = 1;
@@ -581,8 +600,11 @@ function draw() {
     if (c.awakened) {
       m.material.color.setHex(0xff8c32);
     } else {
-      const g = 60 + Math.floor((c.progress / awakenTime) * 80);
-      m.material.color.setRGB(g / 255, g / 255, (g + 5) / 255);
+      const t = c.progress / awakenTime;
+      const r = 61 + t * 194;
+      const g = 61 + t * 79;
+      const b = 64 - t * 14;
+      m.material.color.setRGB(Math.min(1, r / 255), Math.min(1, g / 255), Math.max(0, b / 255));
     }
   });
 

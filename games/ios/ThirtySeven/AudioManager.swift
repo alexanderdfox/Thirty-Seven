@@ -20,7 +20,7 @@ final class AudioManager {
     static let shared = AudioManager()
 
     private var audioEngine: AVAudioEngine?
-    private var playerNodes: [String: AVAudioPlayerNode] = [:]
+    private var playerNode: AVAudioPlayerNode?
     private var isSetup = false
 
     private init() {
@@ -82,11 +82,16 @@ final class AudioManager {
         }
         guard let engine = audioEngine else { return }
 
-        let node = AVAudioPlayerNode()
-        engine.attach(node)
-
-        let mainMixer = engine.mainMixerNode
-        engine.connect(node, to: mainMixer, format: format)
+        let node: AVAudioPlayerNode
+        if let existing = playerNode {
+            node = existing
+            node.stop()
+        } else {
+            node = AVAudioPlayerNode()
+            engine.attach(node)
+            engine.connect(node, to: engine.mainMixerNode, format: format)
+            playerNode = node
+        }
 
         do {
             if !engine.isRunning {

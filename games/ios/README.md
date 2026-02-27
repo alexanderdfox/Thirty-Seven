@@ -2,7 +2,7 @@
 
 A Parable of Desire, Death, and the Undying Cycle.
 
-Swift/SpriteKit 2D game for iPhone. Touch to move, tap Breathe to prepare Lights Out, avoid the Pale Ones.
+Swift/SpriteKit 2D game for iPhone and iPad. Aligned with web 2D: Pale Ones use N-body swarm (separation, cohesion), keep minimum distance. Touch to move, tap Breathe (3–7 sec) then Lights Out, avoid the Pale Ones. 37-second level timer. Responsive layout for all screen sizes.
 
 ## Setup in Xcode
 
@@ -38,8 +38,7 @@ Swift/SpriteKit 2D game for iPhone. Touch to move, tap Breathe to prepare Lights
 ## Controls
 
 - **Touch & drag**: Move the Wanderer (your character)
-- **Tap BREATHE**: Begin the breath—a pause before the fall
-- **Tap again** (while breathing): Lights Out—voluntary death, then rise invulnerable
+- **Tap BREATHE**: Begin the breath (3–7 seconds). Tap again during breath for Lights Out—voluntary death, then rise invulnerable.
 - **Back button**: Return to menu
 
 ## Sound

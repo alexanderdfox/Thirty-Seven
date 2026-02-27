@@ -7,7 +7,6 @@ import CoreGraphics
 
 struct LevelData {
     let name: String
-    let subtitle: String
     let backgroundColorRGB: (Double, Double, Double)
     let wandererStart: CGPoint
     let paleOnePositions: [CGPoint]
@@ -17,7 +16,6 @@ struct LevelData {
     static let presetLevels: [LevelData] = [
         LevelData(
             name: "THE BIRTHPLACE",
-            subtitle: "One cycle. One condition. Forever true.",
             backgroundColorRGB: (0.02, 0.02, 0.08),
             wandererStart: CGPoint(x: 0.5, y: 0.5),
             paleOnePositions: [],
@@ -26,7 +24,6 @@ struct LevelData {
         ),
         LevelData(
             name: "OLD WORLD TAVERN",
-            subtitle: "A song. The only song I know.",
             backgroundColorRGB: (0.1, 0.08, 0.06),
             wandererStart: CGPoint(x: 0.2, y: 0.5),
             paleOnePositions: [(0.8, 0.3), (0.9, 0.7)].map { CGPoint(x: $0.0, y: $0.1) },
@@ -35,7 +32,6 @@ struct LevelData {
         ),
         LevelData(
             name: "NEON ALLEY",
-            subtitle: "The promise that the cycle continues.",
             backgroundColorRGB: (0.06, 0.04, 0.14),
             wandererStart: CGPoint(x: 0.5, y: 0.5),
             paleOnePositions: [(0.1, 0.2), (0.9, 0.2), (0.1, 0.8), (0.9, 0.8)].map { CGPoint(x: $0.0, y: $0.1) },
@@ -44,7 +40,6 @@ struct LevelData {
         ),
         LevelData(
             name: "FOREST",
-            subtitle: "Before the kingdoms. There was always the cycle.",
             backgroundColorRGB: (0.03, 0.06, 0.03),
             wandererStart: CGPoint(x: 0.5, y: 0.5),
             paleOnePositions: [(0.15, 0.15), (0.85, 0.15), (0.5, 0.1), (0.2, 0.8), (0.8, 0.8)].map { CGPoint(x: $0.0, y: $0.1) },
@@ -53,7 +48,6 @@ struct LevelData {
         ),
         LevelData(
             name: "THE CROWD",
-            subtitle: "Awaken! They wanted to feel alive.",
             backgroundColorRGB: (0.06, 0.04, 0.08),
             wandererStart: CGPoint(x: 0.5, y: 0.5),
             paleOnePositions: [(0.1, 0.5), (0.9, 0.5), (0.5, 0.1), (0.5, 0.9), (0.2, 0.2), (0.8, 0.8)].map { CGPoint(x: $0.0, y: $0.1) },
@@ -62,7 +56,6 @@ struct LevelData {
         ),
         LevelData(
             name: "LIGHTS OUT",
-            subtitle: "Let the darkness come.",
             backgroundColorRGB: (0.01, 0.01, 0.03),
             wandererStart: CGPoint(x: 0.5, y: 0.5),
             paleOnePositions: [(0.2, 0.2), (0.8, 0.2), (0.2, 0.8), (0.8, 0.8), (0.5, 0.5)].map { CGPoint(x: $0.0, y: $0.1) },
@@ -71,15 +64,18 @@ struct LevelData {
         )
     ]
 
+    static func coolColor(seed: Int) -> (Double, Double, Double) {
+        var rng = SeededRandomNumberGenerator(seed: UInt64(seed))
+        let r = Double(Int.random(in: 2...15, using: &rng))
+        var g = Double(Int.random(in: 5...29, using: &rng))
+        let b = Double(Int.random(in: 18...45, using: &rng))
+        g = min(g, b - 5)
+        return (r / 255, g / 255, b / 255)
+    }
+
     static func generateRandom(levelNumber: Int) -> LevelData {
         var rng = SeededRandomNumberGenerator(seed: UInt64(levelNumber))
-
-        let base = Double.random(in: 0.02...0.1, using: &rng)
-        let backgroundColorRGB = (
-            base,
-            base + Double.random(in: 0...0.04, using: &rng),
-            base + Double.random(in: 0.02...0.1, using: &rng)
-        )
+        let backgroundColorRGB = coolColor(seed: levelNumber * 7919)
 
         let paleCount = min(12, 4 + levelNumber / 2)
         let crowdCount = min(30, 8 + levelNumber)
@@ -100,7 +96,6 @@ struct LevelData {
 
         return LevelData(
             name: name,
-            subtitle: "The fire never dies.",
             backgroundColorRGB: backgroundColorRGB,
             wandererStart: CGPoint(x: 0.5, y: 0.5),
             paleOnePositions: palePositions,

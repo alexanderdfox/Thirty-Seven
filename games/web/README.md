@@ -22,6 +22,8 @@ python -m http.server 8000
 
 ## Features
 
+- **37-second** level timer per level
+- **3–7 second** breathing phase (random)
 - 6 preset levels + infinite random levels
 - Procedural sounds (Web Audio API)
 - Custom cursor (OS cursor disabled)

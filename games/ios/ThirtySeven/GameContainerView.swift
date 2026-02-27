@@ -12,13 +12,21 @@ struct GameSceneView: View {
     @Binding var gameScene: GameScene?
 
     var body: some View {
-        SpriteKitView(gameState: gameState, gameScene: $gameScene)
+        GeometryReader { geometry in
+            SpriteKitView(
+                gameState: gameState,
+                gameScene: $gameScene,
+                size: geometry.size
+            )
+        }
+        .ignoresSafeArea()
     }
 }
 
 struct SpriteKitView: UIViewRepresentable {
     @ObservedObject var gameState: GameState
     @Binding var gameScene: GameScene?
+    var size: CGSize
 
     func makeUIView(context: Context) -> SKView {
         let skView = SKView()
@@ -26,7 +34,8 @@ struct SpriteKitView: UIViewRepresentable {
         skView.showsFPS = false
         skView.showsNodeCount = false
 
-        let scene = GameScene(size: UIScreen.main.bounds.size)
+        let sceneSize = size.width > 0 && size.height > 0 ? size : UIScreen.main.bounds.size
+        let scene = GameScene(size: sceneSize)
         scene.scaleMode = .resizeFill
         scene.gameState = gameState
         gameState.gameScene = scene
@@ -36,7 +45,13 @@ struct SpriteKitView: UIViewRepresentable {
         return skView
     }
 
-    func updateUIView(_ uiView: SKView, context: Context) {}
+    func updateUIView(_ uiView: SKView, context: Context) {
+        let sceneSize = size.width > 0 && size.height > 0 ? size : UIScreen.main.bounds.size
+        if let scene = uiView.scene as? GameScene, scene.size != sceneSize {
+            scene.size = sceneSize
+            scene.reloadLevel()
+        }
+    }
 }
 
 struct GameContainerView: View {
@@ -47,7 +62,6 @@ struct GameContainerView: View {
     var body: some View {
         ZStack {
             GameSceneView(gameState: gameState, gameScene: $gameScene)
-                .ignoresSafeArea()
 
             if gameState.showLevelComplete {
                 LevelCompleteOverlay(
@@ -59,35 +73,43 @@ struct GameContainerView: View {
                 )
             }
 
-            VStack {
-                HStack {
-                    Button {
-                        AudioManager.shared.play(.menuTap)
-                        dismiss()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(Color(red: 0.9, green: 0.85, blue: 0.7))
-                            .frame(width: 44, height: 44)
+            GeometryReader { geo in
+                let scale = min(1.4, max(0.9, min(geo.size.width, geo.size.height) / 400))
+                VStack {
+                    HStack {
+                        Button {
+                            AudioManager.shared.play(.menuTap)
+                            dismiss()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 20 * scale, weight: .semibold))
+                                .foregroundStyle(Color(red: 0.9, green: 0.85, blue: 0.7))
+                                .frame(width: 44 * scale, height: 44 * scale)
+                        }
+                        .padding(.leading, max(8, 20 * scale))
+
+                        Spacer()
+
+                        Text(gameState.currentLevelName)
+                            .font(.system(size: 14 * scale, weight: .medium))
+                            .foregroundStyle(Color(red: 0.5, green: 0.5, blue: 0.55))
+
+                        Spacer()
+
+                        HStack(spacing: 8) {
+                            Text("\(gameState.levelTimerRemaining)")
+                                .font(.system(size: 14 * scale, weight: .medium, design: .monospaced))
+                                .foregroundStyle(Color(red: 0.6, green: 0.58, blue: 0.5))
+                            Text("\(gameState.awakenedCount)/\(gameState.awakenGoal)")
+                                .font(.system(size: 16 * scale, weight: .bold))
+                                .foregroundStyle(Color(red: 1, green: 0.7, blue: 0.3))
+                        }
+                        .padding(.trailing, max(20, 24 * scale))
                     }
-                    .padding(.leading, 8)
+                    .padding(.top, max(8, 12 * scale))
 
                     Spacer()
-
-                    Text(gameState.currentLevelName)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(Color(red: 0.5, green: 0.5, blue: 0.55))
-
-                    Spacer()
-
-                    Text("\(gameState.awakenedCount)/\(gameState.awakenGoal)")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Color(red: 1, green: 0.7, blue: 0.3))
-                        .padding(.trailing, 20)
                 }
-                .padding(.top, 8)
-
-                Spacer()
             }
         }
         .navigationBarBackButtonHidden(true)
@@ -99,32 +121,35 @@ struct LevelCompleteOverlay: View {
     let onContinue: () -> Void
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.7)
-                .ignoresSafeArea()
+        GeometryReader { geo in
+            let scale = min(1.4, max(0.9, min(geo.size.width, geo.size.height) / 400))
+            ZStack {
+                Color.black.opacity(0.7)
+                    .ignoresSafeArea()
 
-            VStack(spacing: 24) {
-                Text("LEVEL COMPLETE")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(Color(red: 1, green: 0.84, blue: 0.39))
+                VStack(spacing: 24 * scale) {
+                    Text("LEVEL COMPLETE")
+                        .font(.system(size: 28 * scale, weight: .bold))
+                        .foregroundStyle(Color(red: 1, green: 0.84, blue: 0.39))
 
-                Text(levelName)
-                    .font(.system(size: 16))
-                    .foregroundStyle(Color(red: 0.7, green: 0.65, blue: 0.5))
+                    Text(levelName)
+                        .font(.system(size: 16 * scale))
+                        .foregroundStyle(Color(red: 0.7, green: 0.65, blue: 0.5))
 
-                Button {
-                    AudioManager.shared.play(.levelComplete)
-                    onContinue()
-                } label: {
-                    Text("Continue")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 14)
-                        .background(Color(red: 1, green: 0.84, blue: 0.39))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    Button {
+                        AudioManager.shared.play(.levelComplete)
+                        onContinue()
+                    } label: {
+                        Text("Continue")
+                            .font(.system(size: 18 * scale, weight: .semibold))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 32 * scale)
+                            .padding(.vertical, 14 * scale)
+                            .background(Color(red: 1, green: 0.84, blue: 0.39))
+                            .clipShape(RoundedRectangle(cornerRadius: 10 * scale))
+                    }
+                    .padding(.top, 8 * scale)
                 }
-                .padding(.top, 8)
             }
         }
     }

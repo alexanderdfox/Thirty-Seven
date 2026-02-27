@@ -7,7 +7,7 @@ Three.js 6DOF first-person with Descent-style controls. You are the camera. Rear
 ## Run
 
 ```bash
-cd games/web3d6dof
+cd games/web3d
 python -m http.server 8000
 # Open http://localhost:8000
 ```
@@ -28,6 +28,8 @@ All movement based on view direction. Trichording (thrust + slide) for maximum s
 
 ## Features
 
+- **37-second** level timer per level
+- **3–7 second** breathing phase (random)
 - 6DOF camera, instant response (no momentum)
 - Rear view mirrors (center, left, right)
 - 6 preset levels + infinite random

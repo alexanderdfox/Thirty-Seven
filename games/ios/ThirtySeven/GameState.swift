@@ -13,6 +13,7 @@ class GameState: ObservableObject {
     @Published var awakenedCount: Int = 0
     @Published var awakenGoal: Int = 3
     @Published var currentLevelName: String = "THE BIRTHPLACE"
+    @Published var levelTimerRemaining: Int = 37
 
     var currentLevel: LevelData {
         if levelIndex < LevelData.presetLevels.count {
