@@ -40,7 +40,7 @@ function generateRandomLevel(levelNum) {
   return { name: `${eraNames[Math.floor(rng() * eraNames.length)]} #${levelNum}`, bg, wanderer: [0.5, 0.5], paleOnes, crowd, awakenGoal };
 }
 
-const BASE = { AWAKEN_RADIUS: 80, AWAKEN_TIME: 60, PALE_SPEED: 2.8, COLLISION_RADIUS: 38, WANDERER_R: 22, PALE_R: 18, CROWD_R: 14 };
+const BASE = { AWAKEN_RADIUS: 80, AWAKEN_TIME: 60, PALE_SPEED: 1.8, COLLISION_RADIUS: 38, WANDERER_R: 22, PALE_R: 18, CROWD_R: 14 };
 
 const AccessOptions = {
   largerHitboxes: false,
@@ -67,7 +67,7 @@ const AccessOptions = {
   },
   get AWAKEN_RADIUS() { return this.largerHitboxes ? BASE.AWAKEN_RADIUS * 1.5 : (this.longerAwaken ? BASE.AWAKEN_RADIUS * 1.2 : BASE.AWAKEN_RADIUS); },
   get AWAKEN_TIME() { return this.longerAwaken ? 90 : 60; },
-  get PALE_SPEED() { return this.slowerPale ? 1.4 : BASE.PALE_SPEED; },
+  get PALE_SPEED() { return this.slowerPale ? 1.0 : BASE.PALE_SPEED; },
   get COLLISION_RADIUS() { return this.largerHitboxes ? 28 : BASE.COLLISION_RADIUS; },
   get WANDERER_R() { return this.largerHitboxes ? 30 : BASE.WANDERER_R; },
   get PALE_R() { return this.largerHitboxes ? 22 : BASE.PALE_R; },

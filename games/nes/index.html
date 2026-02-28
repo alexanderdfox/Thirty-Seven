@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thirty Seven — NES</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="game" width="256" height="240"></canvas>
+
+    <div id="menu" class="screen">
+      <h1>THIRTY SEVEN</h1>
+      <p class="sub">A PARABLE</p>
+      <p class="start">PRESS START</p>
+      <p class="how">D-PAD/STICK · A/B/X/Y BREATHE · GAMEPAD OK</p>
+    </div>
+
+    <div id="hud" class="hidden">
+      <span id="level-name"></span>
+      <span id="timer"></span>
+      <span id="awaken-count"></span>
+      <p id="vow">WHILE TRUE. DO.</p>
+    </div>
+
+    <div id="level-complete" class="screen hidden">
+      <h2>LEVEL COMPLETE</h2>
+      <p id="complete-name"></p>
+      <p class="start">PRESS START</p>
+    </div>
+
+    <div id="game-over" class="screen hidden">
+      <h2>CAUGHT</h2>
+      <p class="start">PRESS START</p>
+    </div>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>

@@ -12,6 +12,7 @@ Documentation of project structure, game mechanics, implementation details, and 
 |------|----------|-------------|
 | `games/web/` | Web | Three.js top-down orthographic. Pointer-to-world movement. |
 | `games/web3d/` | Web | Three.js 6DOF first-person. Descent-style controls. Rear view mirrors. |
+| `games/nes/` | Web | NES-style 2D Canvas. D-pad, Z/X BREATHE, chiptune. 256×240. |
 | `games/python/` | Desktop | Pygame 2D. Musical instrument: souls play notes when near. |
 | `games/ios/` | iOS | Swift/SpriteKit 2D. Touch to move, tap BREATHE. iPhone & iPad. |
 | `screenplay/` | — | Screenplay and Grok film prompt. |

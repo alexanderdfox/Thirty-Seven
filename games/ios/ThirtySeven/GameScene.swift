@@ -33,7 +33,7 @@ final class GameScene: SKScene {
     private let baseCrowdRadius: CGFloat = 14
     private let baseAwakenRadius: CGFloat = 90
     private let awakenTime = 60
-    private let basePaleOneSpeed: CGFloat = 2.8
+    private let basePaleOneSpeed: CGFloat = 1.8
     private let baseCollisionRadius: CGFloat = 38
     private let lightsOutFall = 60 * 5
     private let lightsOutRise = 60 * 5
