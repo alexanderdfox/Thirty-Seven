@@ -444,7 +444,7 @@ final class GameScene: SKScene {
             crowdMembers[i] = (node, progress, subProgress, awakened)
         }
 
-        gameState.awakenedCount = crowdMembers.filter { $0.2 }.count
+        gameState.awakenedCount = crowdMembers.filter { $0.awakened }.count
         if gameState.awakenedCount >= gameState.awakenGoal {
             AudioManager.shared.play(.levelComplete)
             gameState.showLevelComplete = true
@@ -459,3 +459,4 @@ final class GameScene: SKScene {
         }
     }
 }
+

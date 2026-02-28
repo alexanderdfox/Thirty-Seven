@@ -131,14 +131,18 @@ Python adds: proximity notes when near crowd (pentatonic).
 
 ---
 
-## Preset Levels (6)
+## Preset Levels (6) — Constellation-Inspired
 
-1. **The Birthplace** — 3 awaken, no Pale Ones.
-2. **Old World Tavern** — 4 awaken, 2 Pale Ones.
-3. **Neon Alley** — 5 awaken, 4 Pale Ones.
-4. **Forest** — 5 awaken, 5 Pale Ones.
-5. **The Crowd** — 12 awaken, 6 Pale Ones, 20 crowd.
-6. **Lights Out** — 5 awaken, 5 Pale Ones, dark.
+Crowd positions trace star patterns. Pale Ones hunt in the void between.
+
+| Level | Constellation | Pattern |
+|-------|---------------|---------|
+| 1. **The Birthplace** | Orion | Belt (3) + shoulders. 3 awaken, no Pale Ones. |
+| 2. **Old World Tavern** | Ursa Major | Big Dipper (7 stars). 4 awaken, 2 Pale Ones. |
+| 3. **Neon Alley** | Cassiopeia | W shape (8 stars). 5 awaken, 4 Pale Ones. |
+| 4. **Forest** | Cygnus | Northern Cross (9 stars). 5 awaken, 5 Pale Ones. |
+| 5. **The Crowd** | Lyra + Pleiades | Dense star field (20). 12 awaken, 6 Pale Ones. |
+| 6. **Lights Out** | Scorpius | Scorpion's curve (9 stars). 5 awaken, 5 Pale Ones. |
 
 Random levels beyond index 6. Same layout logic across platforms.
 

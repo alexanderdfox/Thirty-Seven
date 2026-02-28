@@ -16,9 +16,13 @@ See **PROJECT_NOTES.md** for mechanics, timing, and implementation details.
 
 ## Quick Start
 
-**Web (top-down):** Open `games/web/index.html` or run `python -m http.server 8000` from `games/web`
+**Menu:** Open `index.html` in the project root for a launcher to both web versions.
 
-**Web 3D (6DOF):** Open `games/web3d/index.html` or serve `games/web3d`
+**Web (top-down):** Open `games/web/index.html` or serve the project and visit `/games/web/`
+
+**Web 3D (6DOF):** Open `games/web3d/index.html` or serve the project and visit `/games/web3d/`
+
+From project root: `python -m http.server 8000` → http://localhost:8000
 
 **Python:** `cd games/python && pip install -r requirements.txt && python main.py`
 

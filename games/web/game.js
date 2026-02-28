@@ -11,13 +11,20 @@ function coolColor(seed) {
   return [r, Math.min(g, b - 5), b];
 }
 
+// Constellation-inspired layouts: crowd = stars, pale ones = hunters in the void
 const LEVELS = [
-  { name: "THE BIRTHPLACE", wanderer: [0.5, 0.5], paleOnes: [], crowd: [[0.2, 0.3], [0.8, 0.3], [0.5, 0.8], [0.3, 0.6], [0.7, 0.5]], awakenGoal: 3 },
-  { name: "OLD WORLD TAVERN", wanderer: [0.2, 0.5], paleOnes: [[0.8, 0.3], [0.9, 0.7]], crowd: [[0.4, 0.4], [0.5, 0.5], [0.6, 0.4], [0.35, 0.7], [0.65, 0.7], [0.5, 0.25]], awakenGoal: 4 },
-  { name: "NEON ALLEY", wanderer: [0.5, 0.5], paleOnes: [[0.1, 0.2], [0.9, 0.2], [0.1, 0.8], [0.9, 0.8]], crowd: [[0.2, 0.5], [0.3, 0.4], [0.3, 0.6], [0.7, 0.5], [0.8, 0.4], [0.8, 0.6], [0.5, 0.2], [0.5, 0.8]], awakenGoal: 5 },
-  { name: "FOREST", wanderer: [0.5, 0.5], paleOnes: [[0.15, 0.15], [0.85, 0.15], [0.5, 0.1], [0.2, 0.8], [0.8, 0.8]], crowd: [[0.25, 0.3], [0.75, 0.3], [0.25, 0.7], [0.75, 0.7], [0.5, 0.4], [0.4, 0.6], [0.6, 0.6]], awakenGoal: 5 },
-  { name: "THE CROWD", wanderer: [0.5, 0.5], paleOnes: [[0.1, 0.5], [0.9, 0.5], [0.5, 0.1], [0.5, 0.9], [0.2, 0.2], [0.8, 0.8]], crowd: [...Array(20)].map((_, i) => [0.2 + (i % 5) * 0.15, 0.2 + Math.floor(i / 5) * 0.15]), awakenGoal: 12 },
-  { name: "LIGHTS OUT", wanderer: [0.5, 0.5], paleOnes: [[0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8], [0.5, 0.5]], crowd: [[0.3, 0.4], [0.7, 0.4], [0.3, 0.6], [0.7, 0.6], [0.5, 0.5]], awakenGoal: 5 }
+  // 1. Orion — belt and shoulders
+  { name: "THE BIRTHPLACE", wanderer: [0.5, 0.5], paleOnes: [], crowd: [[0.35, 0.5], [0.5, 0.5], [0.65, 0.5], [0.4, 0.35], [0.6, 0.38]], awakenGoal: 3 },
+  // 2. Ursa Major — Big Dipper
+  { name: "OLD WORLD TAVERN", wanderer: [0.25, 0.55], paleOnes: [[0.8, 0.3], [0.9, 0.7]], crowd: [[0.25, 0.6], [0.35, 0.55], [0.45, 0.6], [0.4, 0.5], [0.5, 0.45], [0.6, 0.4], [0.7, 0.35]], awakenGoal: 4 },
+  // 3. Cassiopeia — The W
+  { name: "NEON ALLEY", wanderer: [0.5, 0.5], paleOnes: [[0.1, 0.2], [0.9, 0.2], [0.1, 0.8], [0.9, 0.8]], crowd: [[0.25, 0.35], [0.38, 0.5], [0.5, 0.35], [0.62, 0.5], [0.75, 0.35], [0.4, 0.6], [0.6, 0.6], [0.5, 0.2]], awakenGoal: 5 },
+  // 4. Cygnus — Northern Cross
+  { name: "FOREST", wanderer: [0.5, 0.5], paleOnes: [[0.15, 0.15], [0.85, 0.15], [0.5, 0.1], [0.2, 0.8], [0.8, 0.8]], crowd: [[0.5, 0.25], [0.5, 0.5], [0.5, 0.75], [0.35, 0.5], [0.65, 0.5], [0.35, 0.35], [0.65, 0.35], [0.35, 0.65], [0.65, 0.65]], awakenGoal: 5 },
+  // 5. Lyra + Pleiades — dense star field
+  { name: "THE CROWD", wanderer: [0.5, 0.5], paleOnes: [[0.1, 0.5], [0.9, 0.5], [0.5, 0.1], [0.5, 0.9], [0.2, 0.2], [0.8, 0.8]], crowd: [[0.45, 0.4], [0.55, 0.45], [0.5, 0.55], [0.42, 0.5], [0.3, 0.3], [0.35, 0.28], [0.4, 0.3], [0.38, 0.35], [0.33, 0.32], [0.2, 0.5], [0.7, 0.5], [0.5, 0.2], [0.5, 0.8], [0.25, 0.7], [0.75, 0.25], [0.22, 0.4], [0.78, 0.6], [0.6, 0.72], [0.35, 0.55], [0.65, 0.35]], awakenGoal: 12 },
+  // 6. Scorpius — scorpion's curve
+  { name: "LIGHTS OUT", wanderer: [0.5, 0.5], paleOnes: [[0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8], [0.5, 0.5]], crowd: [[0.75, 0.4], [0.65, 0.45], [0.55, 0.5], [0.45, 0.55], [0.35, 0.6], [0.25, 0.65], [0.2, 0.7], [0.3, 0.4], [0.7, 0.6]], awakenGoal: 5 }
 ];
 
 function seededRandom(seed) {
